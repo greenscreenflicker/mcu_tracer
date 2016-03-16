@@ -25,7 +25,7 @@ MCU->PC:
 --Bool	 	3
 -R/W (1 Byte)
 --Read/Write	0
---Write		1
+--Read only	1
 -Data (4 Byte)
 -Desciptor (0 Terminated)
 -SUM(XOR)

@@ -1,5 +1,14 @@
 #include "unified_header.h"
 
+typedef struct set_variables{
+	char label[30];
+	int type; //0 notused (terminator), 1 long, 2 float, 3 toogle
+	int rw;
+	long data_l;
+	double data_f;
+	GtkWidget* label_widget;
+	GtkWidget* data_widget;
+} set_var_t;
 
 int _comport=-1;
 
@@ -188,6 +197,190 @@ void monitor_master_decode_string(unsigned char* buf, int len){
 		printf("Order unkown, ignoring msg.");
 	}
 }
+
+void print_hex_data(unsigned char* buf, int len){
+	int i;
+	printf("[%i]:",len);
+	for(i=0; i < len; i++){
+		printf("%x-",buf[i]);
+	}
+	printf("\n");
+	fflush(stdout);
+ }
+
+int monitor_master_pack_data(unsigned char *data,unsigned char* ret, int len){
+	unsigned char buf[4096];
+	RS232_PollComport(_comport, buf, 4095); //check buffer is empty
+	
+	buf[0]=MCU_TRACER_STARTBYTE;
+	memcpy(&buf[1],data,len);
+	buf[1+len]=xor_checksum2(data,len)^MCU_TRACER_STARTBYTE;
+	RS232_SendBuf(_comport,buf,len+2);
+	print_hex_data(buf,len+2);
+	usleep(10000);
+	int n;
+	int upcount=0;
+	int retry=10;
+	while((retry--)>0){
+		while(upcount<10000){
+			n = RS232_PollComport(_comport, buf, 4095);
+			if(n > 0){
+				int start=monitor_master_find_startbyte(buf,n);
+				//printf("startpos %i\n",start);
+				int parityok=monitor_master_check_parity(&buf[0],n);
+				if(parityok==1){
+					//Copy data to returnstring
+					printf("fr:");
+					print_hex_data(&buf[0],n);
+					//remove first byte and checksum
+					memcpy(ret,buf+start+1,n-start-2);
+					return (n-start-2);
+				}else{
+					printf("parity failed\n");
+					break;
+				}
+			}
+			
+		}
+		printf("got no answer, retrying...\n");
+		RS232_SendBuf(_comport,buf,len+2);
+	}
+	return -1;
+}
+
+int monitor_master_rec_data(unsigned char *buf){
+	//set_variables_data=calloc
+}
+
+struct set_variables* dummydata5(void){
+	struct set_variables *mydd;
+	//important to use calloc
+	
+	mydd=calloc(sizeof(set_var_t),100);
+	
+	strcpy(mydd[0].label,"Long2");
+	mydd[0].type=1;
+	mydd[0].data_l=1234;
+	strcpy(mydd[1].label,"Float");
+	mydd[1].type=2;
+	mydd[1].data_f=5678.4;
+	strcpy(mydd[2].label,"Toggle A");
+	mydd[2].type=3;
+	mydd[2].data_l=1;
+	strcpy(mydd[3].label,"Toggle D");
+	mydd[3].type=3;
+	mydd[3].data_l=0;
+	strcpy(mydd[4].label,"Toggle Dn");
+	mydd[4].type=3;
+	mydd[4].rw=1;
+	mydd[4].data_l=0;
+	strcpy(mydd[5].label,"Float");
+	mydd[5].type=2;
+	mydd[5].rw=1;
+	mydd[5].data_f=5678.4;
+	
+	return mydd;
+}
+
+struct set_variables* monitor_master_get_variables2(void){
+	unsigned char data[]={1};
+	unsigned char retbuf[5000];
+
+	int len=monitor_master_pack_data(data,retbuf,1);
+	printf("rec:");
+	print_hex_data(retbuf,len);
+	
+	
+	struct set_variables *mydd;
+	//important to use calloc
+	mydd=calloc(sizeof(set_var_t),100);
+	
+	int order=retbuf[0];
+	printf("order: %i\n",order);
+	if(order==1){
+		int decodepos=1;
+		char variablename[100];
+		int iteration=0;
+		do{
+			int type=retbuf[decodepos++];
+			if(type==0) break;
+			int rw=retbuf[decodepos++];
+			int copy=0;
+			while(retbuf[decodepos]!=1){
+				if(decodepos>len){
+					printf("error copying stringname\n");
+					return;
+				}
+				variablename[copy++]=retbuf[decodepos++];
+			}
+			variablename[copy]=0;
+			printf("Variable '%s', type:%i RW:%i decodepos:%i\n",variablename,type,rw,decodepos);
+			
+			if(strlen(variablename)>29){
+				printf("variable string too long\n");
+			}
+			strcpy(mydd[iteration].label,variablename);
+			mydd[iteration].type=type;
+			mydd[iteration].rw=rw;
+			mydd[iteration].data_l=0;
+			mydd[iteration].data_f=0;
+			
+			iteration++;
+			decodepos++;
+		}while(1);
+	}else{
+		printf("Order unkown, ignoring msg.");
+	}
+
+	
+
+	return mydd;
+}
+
+void monitor_master_get_variables(void){
+	unsigned char data[]={1};
+	unsigned char retbuf[5000];
+	set_var_t *data_array;
+
+	int len=monitor_master_pack_data(data,retbuf,1);
+	printf("rec:");
+	print_hex_data(retbuf,len);
+	
+	
+	int order=retbuf[0];
+	printf("order: %i\n",order);
+	if(order==1){
+		int decodepos=1;
+		char variablename[100];
+		int iteration=0;
+		do{
+			int type=retbuf[decodepos++];
+			if(type==0) break;
+			int rw=retbuf[decodepos++];
+			int copy=0;
+			while(retbuf[decodepos]!=1){
+				if(decodepos>len){
+					printf("error copying stringname\n");
+					return;
+				}
+				variablename[copy++]=retbuf[decodepos++];
+			}
+			variablename[copy]=0;
+			printf("Variable '%s', type:%i RW:%i decodepos:%i\n",variablename,type,rw,decodepos);
+			
+			if(strlen(variablename)>29){
+				printf("variable string too long\n");
+			}
+	
+			iteration++;
+			decodepos++;
+		}while(1);
+	}else{
+		printf("Order unkown, ignoring msg.");
+	}
+	
+}
+
 int test_connection(int number, int baud){
 	 int i, n,
 	  cport_nr=number,        
@@ -204,7 +397,7 @@ int test_connection(int number, int baud){
 	}
 	//Save comport number
 	_comport=number;
-	char connection_str[]={0xa5,1,0xa4};
+	char connection_str[]={MCU_TRACER_STARTBYTE,1,MCU_TRACER_STARTBYTE^1};
 	RS232_PollComport(_comport, buf, 4095);
 	RS232_SendBuf(_comport,connection_str,3);
 	//usleep(10000);

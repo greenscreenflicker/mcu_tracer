@@ -8,3 +8,6 @@ int monitor_init(void);
 int monitor_master_streaming_start(void);
 int monitor_master_streaming_stop(void);
 int monitor_master_emergency_stop(void);
+void monitor_master_get_variables(void);
+struct set_variables* dummydata5(void);
+struct set_variables* monitor_master_get_variables2(void);

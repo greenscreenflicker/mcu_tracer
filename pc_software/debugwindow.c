@@ -14,7 +14,7 @@ GtkWidget *debugwindow_quit_button;
 int system_streaming=0;
 
 
-struct set_variables{
+typedef struct set_variables{
 	char label[30];
 	int type; //0 notused (terminator), 1 long, 2 float, 3 toogle
 	int rw;
@@ -22,7 +22,7 @@ struct set_variables{
 	double data_f;
 	GtkWidget* label_widget;
 	GtkWidget* data_widget;
-};
+} set_var_t;
 
 struct set_variables *set_variables_data;
 struct set_variables *read_variables_data;
@@ -30,7 +30,9 @@ struct set_variables *read_variables_data;
 struct set_variables* dummydata(void){
 	struct set_variables *mydd;
 	//important to use calloc
-	mydd=calloc(sizeof(struct set_variables),10);
+	
+	mydd=calloc(sizeof(set_var_t),100);
+	
 	strcpy(mydd[0].label,"Long");
 	mydd[0].type=1;
 	mydd[0].data_l=1234;
@@ -53,6 +55,7 @@ struct set_variables* dummydata(void){
 	mydd[5].type=2;
 	mydd[5].rw=1;
 	mydd[5].data_f=5678.4;
+	//monitor_master_get_variables((char*) mydd);
 	return mydd;
 }
 
@@ -118,7 +121,7 @@ void callback_set_variables_no_enter(GtkWidget *widget, gpointer   usrdata ){
 }
 
 static GtkWidget *
-create_view_and_model (void)
+variables_window (void)
 {
 	debugwindow_set_variables=gtk_frame_new ("Set variables");
 	debugwindow_set_variables_grid=gtk_grid_new();
@@ -126,10 +129,12 @@ create_view_and_model (void)
     //Now we can add elements to the grid
    
     struct set_variables *mydd;
-    mydd=dummydata();
+    mydd=monitor_master_get_variables2();
+    set_variables_data=mydd;
     gint loop=0;
     
     while(mydd[loop].type){
+		printf("creating %s\n",mydd[loop].label);
 		mydd[loop].label_widget=gtk_label_new(mydd[loop].label);
 	
 		char str[30];
@@ -271,7 +276,7 @@ void gui_debug_window(void){
 	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_variable_view, 0, 0, 3, 1);
 	
 	//Adding the control variable box
-	create_view_and_model();
+	variables_window();
 	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_set_variables, 3, 0, 1, 1); //pos x, pos y, width x, with y
 	//Set selection mode of debug window to zero.
 
@@ -279,6 +284,7 @@ void gui_debug_window(void){
 	//Init
 	debugwindow_init_button=gtk_button_new_with_label ("Reinit");
 	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_init_button, 0, 1, 1, 1);
+	g_signal_connect (debugwindow_init_button, "clicked",G_CALLBACK (monitor_master_get_variables), NULL);
 
 	//Stream
 	debugwindow_stream_button=gtk_button_new_with_label ("Start Streaming");

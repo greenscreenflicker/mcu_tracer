@@ -73,15 +73,18 @@ void mcu_tracer_init(void){
   //
   mcu_tracer_write_serial(MCU_TRACER_STARTBYTE);
 
+  //transmit type
+  mcu_tracer_write_serial(1); //variable init  
+
   //now here comes some dummy data, created manually.
   //Replace later with automatic function
 
   mcu_tracer_write_serial(1); //int
-  mcu_tracer_write_serial(0); //read only
-  mcu_tracer_write_string("Testing variable r");
+  mcu_tracer_write_serial(1); //read only
+  mcu_tracer_write_string("read only");
   mcu_tracer_write_serial(1); //int
-  mcu_tracer_write_serial(1); //read write
-  mcu_tracer_write_string("rw variable");
+  mcu_tracer_write_serial(0); //read write
+  mcu_tracer_write_string("read and write");
 
   
   mcu_tracer_write_serial(0); //last byte
