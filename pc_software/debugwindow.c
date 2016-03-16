@@ -17,6 +17,7 @@ int system_streaming=0;
 struct set_variables{
 	char label[30];
 	int type; //0 notused (terminator), 1 long, 2 float, 3 toogle
+	int rw;
 	long data_l;
 	double data_f;
 	GtkWidget* label_widget;
@@ -43,6 +44,15 @@ struct set_variables* dummydata(void){
 	mydd[3].type=3;
 	mydd[3].data_l=0;
 	set_variables_data=mydd;
+	strcpy(mydd[4].label,"Toggle Dn");
+	mydd[4].type=3;
+	mydd[4].rw=1;
+	mydd[4].data_l=0;
+	set_variables_data=mydd;
+	strcpy(mydd[5].label,"Float");
+	mydd[5].type=2;
+	mydd[5].rw=1;
+	mydd[5].data_f=5678.4;
 	return mydd;
 }
 
@@ -144,6 +154,11 @@ create_view_and_model (void)
 			}
 			gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(mydd[loop].data_widget),active);
 			g_signal_connect (mydd[loop].data_widget, "toggled",  G_CALLBACK (callback_set_variables_changed), NULL);
+		}
+		
+		//read write selection
+		if(mydd[loop].rw>0){
+			gtk_widget_set_sensitive (mydd[loop].data_widget, FALSE);
 		}
 		
 		gtk_grid_attach (GTK_GRID (debugwindow_set_variables_grid), mydd[loop].label_widget, 0, loop, 1, 1); //pos x, pos y, width x, with y
