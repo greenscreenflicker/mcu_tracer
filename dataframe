@@ -1,0 +1,70 @@
+The Dataframe format is the following:
+
+Master (PC->MCU)
+
+Startbye (0b10100101 or 0xA5) + Order + Data + SUM(XOR)
+
+Order 1: Init
+Requests data from MCU: Type=0b0000 0001
+
+Example: The datastreem looks like this
+0b10100101 0b00000001 0xb10100100
+
+PC->MCU
+-Startbyte (1 Byte)
+-Order (0b0000 0001)
+-SUM(XOR)
+
+MCU->PC:
+-Startbyte (1 Byte)
+-Order (0b0000 0001)
+-Type. (1 Byte)
+--Terminator 	0 (Last element, all other values need to be send but are ignored)
+--Int    	1
+--Float  	2
+--Bool	 	3
+-R/W (1 Byte)
+--Read/Write	0
+--Write		1
+-Data (4 Byte)
+-Desciptor (0 Terminated)
+-SUM(XOR)
+ 
+Order 2: All values to transfer
+PC->MCU
+-Startbyte (1 Byte)
+-Order (0b0000 0010)
+-SUM(XOR)
+
+MCU->PC
+-Startbyte(1 Byte)
+-Order (0b0000 0010)
+-Value (4 Bytes)
+-SUM(XOR)
+
+Order3: Update value
+PC->MCU
+-Startbyte (1 Byte)
+-Order (0b0000 0011)
+-Value (4 Bytes)
+-SUM(XOR)
+
+MCU->PC
+-Startbyte (1 Byte)
+-Order (0b0000 0011)
+-Value (4 Bytes)
+-SUM(XOR)
+
+
+
+Order: 0xFF: Emergency Stop
+
+PC->MCU
+-Startbyte (1 Byte)
+-Order (0b1111 1111)
+-SUM(XOR)
+
+MCU->PC
+-Startbyte (1 Byte)
+-Order (0b1111 1111)
+-SUM(XOR)
