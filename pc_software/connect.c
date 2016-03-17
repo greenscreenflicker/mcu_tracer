@@ -42,7 +42,7 @@ void gui_connect_window_connect2serial( GtkWidget *widget,  gpointer   data ) {
 	
 	//ToDo: later we should think of a better test here!
 	
-	int status=test_connection(serialinterface,baudrates[bdrate]);
+	int status=monitor_test_connection(serialinterface,baudrates[bdrate]);
 	if(status==-1){
 		gtk_label_set_text(GTK_LABEL(feedback_box),"Serial port could not be opened");
 		return;
@@ -50,7 +50,8 @@ void gui_connect_window_connect2serial( GtkWidget *widget,  gpointer   data ) {
 		gtk_label_set_text(GTK_LABEL(feedback_box),"Device not responding");
 		return;
 	}else if(status==1){
-		//gtk_label_set_text(GTK_LABEL(feedback_box),"connection okay");
+		printf("connection okay");
+		gtk_label_set_text(GTK_LABEL(feedback_box),"connection okay");
 		gtk_widget_hide(window);
 		gui_debug_window();
 	}
@@ -139,9 +140,12 @@ void gui_connect_window(void){
     //Add baud rate combo
     combo_baud = gtk_combo_box_text_new();
     char convert2str[20];
-    for(combo_items=0;combo_items<sizeof(baudrates);combo_items++){
-		sprintf(convert2str,"%i",baudrates[combo_items]);
-		gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo_baud), NULL,convert2str);
+
+    {
+		for(combo_items=0;combo_items<sizeof(baudrates);combo_items++){
+			sprintf(convert2str,"%i",baudrates[combo_items]);
+			gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo_baud), NULL,convert2str);
+		}
 	}
 	gtk_combo_box_set_active(GTK_COMBO_BOX(combo_baud), 13);
 	gtk_grid_attach (GTK_GRID (table), combo_baud, 1, 1, 1, 1);
@@ -172,9 +176,6 @@ void gui_connect_window(void){
     //Final stuff
     gtk_widget_show_all(window);
     
-    
-        
-    gtk_main ();
-    
+
     return;
 }

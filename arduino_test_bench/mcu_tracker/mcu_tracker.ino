@@ -250,6 +250,7 @@ void loop() {
   }else{
     digitalWrite(13, LOW);
   }
+  debug2=analogRead(A0);
   /*
   if(Serial.available()){
     Serial.write(Serial.read());

@@ -1,5 +1,6 @@
 #include "unified_header.h"
 
+/*
 typedef struct set_variables{
 	char label[30];
 	int type; //0 notused (terminator), 1 long, 2 float, 3 toogle
@@ -8,9 +9,17 @@ typedef struct set_variables{
 	double data_f;
 	GtkWidget* label_widget;
 	GtkWidget* data_widget;
-} set_var_t;
+} set_var_t;*/
 
 int _comport=-1;
+int _run_rec_thread;
+
+GMutex *lock_rs232; 
+GMutex *lock_paritycheckbit;
+GMutex *lock_rec_thread;
+
+
+
 
 uint16_t xor_checksum(uint16_t *data, int length){
 	//
@@ -166,37 +175,7 @@ int monitor_master_check_parity(unsigned char* buf, int len){
 	}
 }
 
-void monitor_master_decode_string(unsigned char* buf, int len){
-	int startbyte=monitor_master_find_startbyte(buf, len);
-	if(startbyte==-1){
-		//Error
-		printf("startbyte was not found. not a legic msg. Ignoring.\n");
-		return;
-	}
-	int order=buf[startbyte+1];
-	if(order==1){
-		int decodepos=startbyte+1;
-		char variablename[100];
-		do{
-			int type=buf[decodepos++];
-			if(type==0) break;
-			int rw=buf[decodepos++];
-			int copy=0;
-			while(buf[decodepos]!=1){
-				if(decodepos>len){
-					printf("error copying stringname\n");
-					return;
-				}
-				variablename[copy++]=buf[decodepos++];
-			}
-			variablename[copy]=0;
-			printf("Variable '%s', type:%i RW:%i decodepos:%i\n",variablename,type,rw,decodepos);
-			decodepos++;
-		}while(1);
-	}else{
-		printf("Order unkown, ignoring msg.");
-	}
-}
+
 
 void print_hex_data(unsigned char* buf, int len){
 	int i;
@@ -491,4 +470,286 @@ void monitor_rs232_flush_recieved_data(void){
 	printf("\n");
 }
 
+///////////////////////////////////////////////////////
+//interfacer for threads
+int monitor_parity_is_working;
+int recieve_debug_window_active=0;
+int monitor_rs232_rec_terminate=0;
+int monitor_rs232_req_terminate=2;
+pthread_mutex_t plock_rs232= PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t plock_rs232_parity_check= PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t plock_rs232_terminate= PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t plock_rs232_req= PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t plock_rec_debug_window= PTHREAD_MUTEX_INITIALIZER;
+pthread_t th_rec, th_req;
+
+//sends data to the mcu, run from gtk thread
+int monitor_test_connection(int number, int baud){
+	 int i, n,
+	  cport_nr=number,        
+	  bdrate=baud;      
+
+	unsigned char buf[4096];
+	printf("up (com:%i b:%i)\n",cport_nr,bdrate);
+	char mode[]={'8','N','1',0};
+
+
+	if(RS232_OpenComport(cport_nr, bdrate, mode)){
+		printf("Can not open comport\n");
+		return(-1);
+	}
+	//Save comport number
+	_comport=number;
+      
+   
+	pthread_t tr, tw;
+	//casting is needed to avoid warning, though not beautiful.
+	 pthread_create(&th_rec,NULL,(void * (*)(void *))monitor_recieve_thread,NULL);
+   
+	char connection_str[]={MCU_TRACER_STARTBYTE,1,MCU_TRACER_STARTBYTE^1};
+	int parityok=0;
+	
+	i=1000;
+	while((i--)>0){
+		if((i%100)==0){
+			pthread_mutex_lock(&plock_rs232);
+			RS232_SendBuf(_comport,connection_str,3);
+			pthread_mutex_unlock(&plock_rs232);
+		}
+		/*
+		g_mutex_lock (lock_rs232);
+		RS232_SendBuf(_comport,connection_str,3);
+		g_mutex_unlock (lock_rs232);
+		
+		g_mutex_lock (lock_paritycheckbit);
+		parityok=monitor_parity_is_working;
+		g_mutex_unlock (lock_paritycheckbit);
+		*/
+		usleep(1000);
+		pthread_mutex_lock(&plock_rs232_parity_check);
+		parityok=monitor_parity_is_working;
+		pthread_mutex_unlock(&plock_rs232_parity_check);
+		if(parityok==1) return 1; //report our success
+	}
+	
+	//monitor_recieve_thread_terminate();
+	monitor_recieve_terminate();
+	fflush(stdout);
+	RS232_CloseComport(_comport);
+	_comport=-1;
+	return(-2);
+}
+
+int monitor_master_send(unsigned char *data, int len){
+	unsigned char buf[4096];
+	printf("req data:");
+	
+	buf[0]=MCU_TRACER_STARTBYTE;
+	memcpy(&buf[1],data,len);
+	buf[1+len]=xor_checksum2(data,len)^MCU_TRACER_STARTBYTE;
+	print_hex_data(&buf[0],len+2);
+	printf("\n");
+	return RS232_SendBuf(_comport,buf,len+2);
+}
+
+void monitor_master_req_init(void){
+	//requests init data;
+	unsigned char data[]={1};
+	monitor_master_send(data,1);
+}
+
+void monitor_master_req_data(void){
+	//requests data stream of all data;
+	unsigned char data[]={2};
+	monitor_master_send(data,1);
+}
+
+void monitor_master_write_var(uint16_t num, int32_t val){
+	//writes value to the mcu
+	unsigned char data[7]={3,1,0,0,0,0,0};
+	data[1]=(unsigned char)(num>>8);
+	data[2]=(unsigned char)(num);
+	data[3]=(unsigned char)(val>>8*3);
+	data[4]=(unsigned char)(val>>8*2);
+	data[5]=(unsigned char)(val>>8*1);
+	data[6]=(unsigned char)(val>>8*0);
+	monitor_master_send(data,7);
+}
+
+
+
+void monitor_master_req_frequently(void){
+	//
+	int request_terminate=0;
+	while(request_terminate==0){
+		usleep(100000);
+		monitor_master_req_data();
+		pthread_mutex_lock(&plock_rs232_req);
+		request_terminate=monitor_rs232_req_terminate;
+		pthread_mutex_unlock(&plock_rs232_req);
+	}
+	pthread_mutex_lock(&plock_rs232_req);
+	monitor_rs232_req_terminate=2;
+	pthread_mutex_unlock(&plock_rs232_req);
+	printf("reqthread terminated\n");
+}
+
+void monitor_master_req_frequently_enable(void){
+	int request_terminate;
+	pthread_mutex_lock(&plock_rs232_req);
+	request_terminate=monitor_rs232_req_terminate;
+	pthread_mutex_unlock(&plock_rs232_req);
+	if(request_terminate==2){
+		monitor_rs232_req_terminate=0;
+		pthread_create(&th_req,NULL,(void * (*)(void *))monitor_master_req_frequently,NULL);
+		printf("reqthread created\n");
+	}
+}
+
+void monitor_master_req_frequently_disable(void){
+	pthread_mutex_lock(&plock_rs232_req);
+	monitor_rs232_req_terminate=1;
+	pthread_mutex_unlock(&plock_rs232_req);
+}
+
+
+void monitor_recieve_terminate(void){
+	pthread_mutex_lock(&plock_rs232_terminate);
+	monitor_rs232_rec_terminate=1;
+	pthread_mutex_unlock(&plock_rs232_terminate);
+}
+
+void monitor_master_allow_decoding(void){
+	pthread_mutex_lock(&plock_rec_debug_window);
+	recieve_debug_window_active=1;
+	pthread_mutex_unlock(&plock_rec_debug_window);
+}
+
+void * monitor_recieve_thread(void){
+	//recieves data;
+	unsigned char buf[4096];
+	int parityok=0;
+	int terminate=0;
+	pthread_mutex_lock(&plock_rs232_terminate);
+	monitor_rs232_rec_terminate=0;
+	pthread_mutex_unlock(&plock_rs232_terminate);
+	while(terminate==0){
+		pthread_mutex_lock(&plock_rs232);
+		int n = RS232_PollComport(_comport, buf, 4095);
+		pthread_mutex_unlock(&plock_rs232);
+		if(n > 0){
+			buf[n] = 0; 
+			printf("recieved:");
+			print_hex_data(&buf[0],n);
+			parityok=monitor_master_check_parity(&buf[0],n);
+			pthread_mutex_lock(&plock_rs232_parity_check);
+			monitor_parity_is_working=parityok;
+			pthread_mutex_unlock(&plock_rs232_parity_check);
+			
+			int may_we_decode;
+			pthread_mutex_lock(&plock_rec_debug_window);
+			may_we_decode=recieve_debug_window_active;
+			pthread_mutex_unlock(&plock_rec_debug_window);
+			if(may_we_decode==1){
+				//
+				monitor_master_decode_string(&buf[0],n);
+			}
+			
+		}
+		usleep(1000);
+		
+		//check if we're allowed to decode our recieved string
+
+		
+		
+		pthread_mutex_lock(&plock_rs232_terminate);
+		terminate=monitor_rs232_rec_terminate;
+		pthread_mutex_unlock(&plock_rs232_terminate);
+	}        
+	
+
+	printf("rec thread terminated\n");
+}
+
+
+void monitor_master_decode_string(unsigned char* buf, int len){
+	int startbyte=monitor_master_find_startbyte(buf, len);
+	if(startbyte==-1){
+		//Error
+		printf("startbyte was not found. not a legic msg. Ignoring.\n");
+		return;
+	}
+	int order=buf[startbyte+1];
+	if(order==1){
+		struct set_variables *mydd;
+		mydd=calloc(sizeof(set_var_t),len/4); //generously overestimate number of elements we will need
+		int decodepos=startbyte+2;
+		int element=0;
+		char variablename[100];
+		do{
+			int type=buf[decodepos++];
+			if(type==0) break;
+			int rw=buf[decodepos++];
+			int copy=0;
+			while(buf[decodepos]!=1){
+				if(decodepos>len){
+					printf("error copying stringname\n");
+					return;
+				}
+				variablename[copy++]=buf[decodepos++];
+			}
+			variablename[copy]=0;
+			//printf("Variable '%s', type:%i RW:%i element:%i\n",variablename,type,rw,element);
+			
+			//copy stringname
+			strcpy(mydd[element].label,variablename);
+			mydd[element].type=type;
+			mydd[element].rw=rw;
+			mydd[element].data_l=0;
+			element=element+1;
+			//force update to gtk
+			decodepos++;
+        
+		}while(1);
+		element=element+1;
+		strcpy(mydd[element].label,"empty");
+		mydd[element].type=0;
+		mydd[element].rw=0;
+		mydd[element].data_l=0;
+		//say_hello();
+		//variables_window_update();
+		//important to use calloc
+		
+		inject_call((GSourceFunc)variables_window_update, mydd);
+	}else if(order==2){
+		int elementstodecode=(len-startbyte-3)/4;
+		//printf("we have %i elements to decode\n",elementstodecode);
+		uint32_t *data=calloc(sizeof(uint32_t),elementstodecode+1);
+		int decodepos=startbyte+2;
+		int i;
+		for(i=0;i<elementstodecode;i++){
+			data[i]=(
+				(buf[2+i*4]<<(8*3))+
+				(buf[3+i*4]<<(8*2))+
+				(buf[4+i*4]<<(8*1))+
+				(buf[5+i*4]<<(8*0)));
+			//printf("%i:%i(%x-%x-%x-%x)\n",i,data[i],buf[2+i*4],buf[3+i*4],buf[4+i*4],buf[5+i*4]);
+		}
+		inject_call((GSourceFunc)variables_window_update_vars, data);
+		//
+	}else if(order==3){
+		//updating single variable+
+		if(len==(3+6)){
+			set_single_var_t *singlevar;
+			singlevar=malloc(sizeof(set_single_var_t));
+			singlevar->addr=(buf[2]<<8)+(buf[3]<<0);
+			singlevar->val=(buf[4]<<8*3)+(buf[5]<<8*2)+(buf[6]<<8*1)+(buf[7]<<8*0);
+			//senprintf("addr:%i|data:%i\n",singlevar->addr,singlevar->val);
+			inject_call((GSourceFunc)variables_window_update_single_var, singlevar);
+		}
+	}else{
+		printf("Order unkown, ignoring msg.\n");
+		fflush(stdout);
+	}
+}
 

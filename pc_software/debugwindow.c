@@ -11,18 +11,12 @@ GtkWidget *debugwindow_stream_button;
 GtkWidget *debugwindow_emergency_button;
 GtkWidget *debugwindow_quit_button;
 
+
+GMainContext *gtk_context_var;
+
 int system_streaming=0;
 
 
-typedef struct set_variables{
-	char label[30];
-	int type; //0 notused (terminator), 1 long, 2 float, 3 toogle
-	int rw;
-	long data_l;
-	double data_f;
-	GtkWidget* label_widget;
-	GtkWidget* data_widget;
-} set_var_t;
 
 struct set_variables *set_variables_data;
 struct set_variables *read_variables_data;
@@ -75,6 +69,7 @@ void callback_set_variables_changed(GtkWidget *widget, gpointer   data ){
 				set_variables_data[loop].data_l=0;
 				//printf("%s: deactive\n",set_variables_data[loop].label);
 			}
+			monitor_master_write_var(loop,set_variables_data[loop].data_l);
 			return;
 		}
 
@@ -90,9 +85,12 @@ void callback_set_variables_changed_text(GtkWidget *widget, gpointer   data ){
 		if(set_variables_data[loop].data_widget==widget){	
 			if(set_variables_data[loop].type==1){
 				set_variables_data[loop].data_l=atoi(gtk_entry_get_text(GTK_ENTRY(set_variables_data[loop].data_widget)));
+				printf("entered: %i\n",set_variables_data[loop].data_l);
 			}else if(set_variables_data[loop].type==2){
 				set_variables_data[loop].data_f=atof(gtk_entry_get_text(GTK_ENTRY(set_variables_data[loop].data_widget)));
-			}				
+			}
+			//transfer data to mcu
+			monitor_master_write_var(loop,set_variables_data[loop].data_l);
 			return;
 		}
 		loop=loop+1;
@@ -109,7 +107,7 @@ void callback_set_variables_no_enter(GtkWidget *widget, gpointer   usrdata ){
 			//Set string to orginal
 			char str[30];
 			if(set_variables_data[loop].type==1){
-				sprintf(str, "%li", set_variables_data[loop].data_l);
+				sprintf(str, "%i", set_variables_data[loop].data_l);
 			}else if(set_variables_data[loop].type==2){
 				sprintf(str, "%lf", set_variables_data[loop].data_f);
 			}
@@ -120,6 +118,7 @@ void callback_set_variables_no_enter(GtkWidget *widget, gpointer   usrdata ){
 	}
 }
 
+
 void
 variables_window (void)
 {
@@ -127,23 +126,37 @@ variables_window (void)
 	debugwindow_set_variables_grid=gtk_grid_new();
     gtk_container_add(GTK_CONTAINER(debugwindow_set_variables), debugwindow_set_variables_grid);
     //Now we can add elements to the grid
-   
-    struct set_variables *mydd;
-    mydd=monitor_master_get_variables2();
+    set_variables_data=NULL;
+ 
+
+}
+
+gboolean variables_window_update(struct set_variables *mydd){
+	//recrusivly destroy grid
+	gtk_widget_destroy(debugwindow_set_variables_grid);
+	free(set_variables_data); //free óld memory
+	
+	//create new grid
+	debugwindow_set_variables_grid=gtk_grid_new();
+	//add it to container 
+	gtk_container_add(GTK_CONTAINER(debugwindow_set_variables), debugwindow_set_variables_grid);
+	 
+	//struct set_variables *mydd;
     if(mydd==NULL){
 		printf("data aquisition failed\n");
-		return;
+		//return;
 	}
     set_variables_data=mydd;
     gint loop=0;
     
     while(mydd[loop].type){
-		printf("creating %s\n",mydd[loop].label);
+		//printf("%i: creating %s\n",loop,mydd[loop].label);
+		
 		mydd[loop].label_widget=gtk_label_new(mydd[loop].label);
 	
 		char str[30];
 		if(mydd[loop].type==1){
-			sprintf(str, "%li", mydd[loop].data_l);
+			sprintf(str, "%i", mydd[loop].data_l);
 			mydd[loop].data_widget=gtk_entry_new();
 			gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
 			g_signal_connect (mydd[loop].data_widget, "activate",  G_CALLBACK (callback_set_variables_changed_text), NULL);
@@ -172,13 +185,80 @@ variables_window (void)
 		
 		gtk_grid_attach (GTK_GRID (debugwindow_set_variables_grid), mydd[loop].label_widget, 0, loop, 1, 1); //pos x, pos y, width x, with y
 		gtk_grid_attach (GTK_GRID (debugwindow_set_variables_grid), mydd[loop].data_widget, 1, loop, 1, 1); //pos x, pos y, width x, with y
+	
 		loop=loop+1;
 	}
+	//printf("%i: creating %s\n",1,mydd[1].label);
+	gtk_widget_show_all(debugwindow_set_variables_grid);
+	return G_SOURCE_REMOVE;
+}
+
+gboolean variables_window_update_vars(uint32_t *datastream){
+	//Updates the values in the specific input types
+	struct set_variables *mydd;
+	mydd=set_variables_data; //local working copy to easy my life
+    gint loop=0;
+    
+    while(mydd[loop].type){
+		mydd[loop].data_l=datastream[loop];
+		char str[30];
+		if(mydd[loop].type==1){
+			sprintf(str, "%i", mydd[loop].data_l);
+			//do not overwrite, when user is editing
+			if(gtk_widget_is_focus (GTK_WIDGET(mydd[loop].data_widget))==FALSE){
+				gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
+			}
+		}else if(mydd[loop].type==2){
+			sprintf(str, "%lf", mydd[loop].data_f);
+			//do not overwrite, when user is editing
+			if(gtk_widget_is_focus (GTK_WIDGET(mydd[loop].data_widget))==FALSE){
+				gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
+			}
+		}else if(mydd[loop].type==3){
+			mydd[loop].data_widget=gtk_check_button_new ();
+			//gboolean active=(mydd[0].data_l!=0);
+			gboolean active=TRUE;
+			if(mydd[loop].data_l==0){
+				active=FALSE;
+			}
+			gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(mydd[loop].data_widget),active);
+		}	
+		loop=loop+1;
+	}
+	free(datastream);
+	return G_SOURCE_REMOVE;	
+}
+gboolean variables_window_update_single_var(set_single_var_t *data){
+	//
+	int loop=data->addr; //we should check addr later!!! TODO!!! RISK!!! FOR CRASHING!
+	struct set_variables *mydd;
+	mydd=set_variables_data;
+	mydd[loop].data_l=data->val;
+	printf("addr:%i|data:%i\n",data->addr,data->val);
+	char str[30];
+	if(mydd[loop].type==1){
+		sprintf(str, "%i", mydd[loop].data_l);
+		gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
+	}else if(mydd[loop].type==2){
+		sprintf(str, "%lf", mydd[loop].data_f);
+		gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
+	}else if(mydd[loop].type==3){
+		mydd[loop].data_widget=gtk_check_button_new ();
+		//gboolean active=(mydd[0].data_l!=0);
+		gboolean active=TRUE;
+		if(mydd[loop].data_l==0){
+			active=FALSE;
+		}
+		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(mydd[loop].data_widget),active);
+	}
+	free(data);
+	return G_SOURCE_REMOVE;	
 }
 
 void gui_get_dummy_read_data(void){
 	//
-	read_variables_data=calloc(sizeof (struct set_variables),10);
+	read_variables_data=calloc(sizeof(set_var_t),100);
+		
 	strcpy(read_variables_data[0].label,"Eins");
 	read_variables_data[0].type=1;
 	read_variables_data[0].data_l=1;
@@ -209,7 +289,7 @@ void gui_read_variables_init(){
 		
 		char str[30];
 		if(read_variables_data[loop].type==1){
-			sprintf(str, "%li", read_variables_data[loop].data_l);
+			sprintf(str, "%i", read_variables_data[loop].data_l);
 		}else if(read_variables_data[loop].type==2){
 			sprintf(str, "%lf", read_variables_data[loop].data_f);
 		}else if(read_variables_data[loop].type==3){
@@ -237,14 +317,24 @@ void gui_debug_stream(void){
 		gtk_button_set_label (GTK_BUTTON(debugwindow_stream_button),"Stop Streaming");
 		system_streaming=1;
 		//ToDO: add code for starting streaming here.
+		monitor_master_req_frequently_enable();
 	}else{
 		gtk_button_set_label (GTK_BUTTON(debugwindow_stream_button),"Start Streaming");
 		system_streaming=0;
+		monitor_master_req_frequently_disable();
 	}		
+	monitor_master_req_data();
 }
 
 void gui_debug_quit(void){
 	gtk_main_quit ();
+}
+
+void gui_debug_init_data(void){
+	monitor_master_req_init();
+	//a short sleep so we dont messed up
+	usleep(5000);
+	monitor_master_req_data();
 }
 
 void gui_debug_window(void){
@@ -259,7 +349,7 @@ void gui_debug_window(void){
 	gtk_window_set_title (GTK_WINDOW (debugwindow), "Debug Window");	  
 	
 	debugwindow_grid=gtk_grid_new (); //Creating Grid
-	
+
 	//adding grid to window
 	gtk_container_add (GTK_CONTAINER (debugwindow), debugwindow_grid);
 
@@ -267,6 +357,7 @@ void gui_debug_window(void){
 	debugwindow_variable_view=gtk_notebook_new();
 	//For now we add only dummy elements
 	gui_read_variables_init();
+	
 	gtk_notebook_append_page (GTK_NOTEBOOK(debugwindow_variable_view),
                           debugwindow_read_variables,
                           gtk_label_new("Read variables"));
@@ -278,9 +369,11 @@ void gui_debug_window(void){
                           gtk_label_new("Tab Label 3"));                      
      
 	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_variable_view, 0, 0, 3, 1);
-	
+
 	//Adding the control variable box
+	
 	variables_window();
+	
 	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_set_variables, 3, 0, 1, 1); //pos x, pos y, width x, with y
 	//Set selection mode of debug window to zero.
 
@@ -288,7 +381,7 @@ void gui_debug_window(void){
 	//Init
 	debugwindow_init_button=gtk_button_new_with_label ("Reinit");
 	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_init_button, 0, 1, 1, 1);
-	g_signal_connect (debugwindow_init_button, "clicked",G_CALLBACK (monitor_master_get_variables), NULL);
+	g_signal_connect (debugwindow_init_button, "clicked",G_CALLBACK (gui_debug_init_data), NULL);
 
 	//Stream
 	debugwindow_stream_button=gtk_button_new_with_label ("Start Streaming");
@@ -297,6 +390,8 @@ void gui_debug_window(void){
 	//Emergency
 	debugwindow_emergency_button=gtk_button_new_with_label ("Emergency");
 	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_emergency_button, 2, 1, 1, 1);
+	//g_signal_connect (debugwindow_emergency_button, "clicked",G_CALLBACK (debug_send), NULL);
+	
 	//Quit
 	debugwindow_quit_button=gtk_button_new_with_label ("Quit");
 	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_quit_button, 3, 1, 1, 1);
@@ -306,4 +401,23 @@ void gui_debug_window(void){
 	//Finally showing all
 	gtk_widget_show_all(debugwindow);
 
+	//allow the read threat to change our window
+	monitor_master_allow_decoding();
+	//Load our variables
+	gui_debug_init_data();
+
+}
+
+gboolean say_hello(void){
+	printf("Hello\n");
+	return G_SOURCE_REMOVE;
+}
+
+void inject_call(GSourceFunc func, gpointer data){
+	GSource *source;
+	source = g_idle_source_new();
+	g_source_set_callback(source, func, data, NULL);
+	g_source_attach(source, gtk_context_var);
+	
+	g_source_unref(source);
 }
