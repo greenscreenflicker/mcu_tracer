@@ -155,8 +155,8 @@ int monitor_master_find_startbyte(unsigned char* buf, int len){
 
 int monitor_master_check_parity(unsigned char* buf, int len){
 	int startbyte=monitor_master_find_startbyte(buf,len);
-	unsigned char checksum;
-	checksum=xor_checksum2(buf+startbyte,len-startbyte);
+	if(startbyte<0) return 0; //startbyte not found
+	unsigned char checksum=xor_checksum2(buf+startbyte,len-startbyte);
 	if(checksum==0){
 		//printf("integrity: no error detected");
 		return 1;
@@ -228,15 +228,17 @@ int monitor_master_pack_data(unsigned char *data,unsigned char* ret, int len){
 				int start=monitor_master_find_startbyte(buf,n);
 				//printf("startpos %i\n",start);
 				int parityok=monitor_master_check_parity(&buf[0],n);
+				//	//Copy data to returnstring
+				printf("fr:");
+				print_hex_data(&buf[0],n);
 				if(parityok==1){
-					//Copy data to returnstring
-					printf("fr:");
-					print_hex_data(&buf[0],n);
+
 					//remove first byte and checksum
 					memcpy(ret,buf+start+1,n-start-2);
 					return (n-start-2);
 				}else{
 					printf("parity failed\n");
+					return -2;
 					break;
 				}
 			}
@@ -329,7 +331,9 @@ struct set_variables* monitor_master_get_variables2(void){
 			decodepos++;
 		}while(1);
 	}else{
-		printf("Order unkown, ignoring msg.");
+		printf("Order unkown, ignoring msg.\n");
+		free(mydd);
+		return NULL;
 	}
 
 	
@@ -413,8 +417,10 @@ int test_connection(int number, int baud){
 			{
 				printf("%x-",buf[i]);
 			}*/
+			print_hex_data(&buf[0],n);
 			int parityok=monitor_master_check_parity(&buf[0],n);
 			if(parityok==1){
+				printf("Test connection sucessfully estabilshed.\n");
 				return 1;
 			}
 			

@@ -120,7 +120,7 @@ void callback_set_variables_no_enter(GtkWidget *widget, gpointer   usrdata ){
 	}
 }
 
-static GtkWidget *
+void
 variables_window (void)
 {
 	debugwindow_set_variables=gtk_frame_new ("Set variables");
@@ -130,6 +130,10 @@ variables_window (void)
    
     struct set_variables *mydd;
     mydd=monitor_master_get_variables2();
+    if(mydd==NULL){
+		printf("data aquisition failed\n");
+		return;
+	}
     set_variables_data=mydd;
     gint loop=0;
     
