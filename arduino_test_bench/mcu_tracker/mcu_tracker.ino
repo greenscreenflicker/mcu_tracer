@@ -37,7 +37,7 @@ void mcu_tracer_fill(void){
 
   monitorvars[1].type=1;
   monitorvars[1].rw=0;
-  monitorvars[1].data_l=&debug1;
+  monitorvars[1].data_l=&debug2;
   strcpy(monitorvars[1].varname,"Hallo2");
   monitorvars[1].data_lmin=0;
   monitorvars[1].data_lmax=1;
@@ -215,10 +215,11 @@ void mcu_tracer_update(uint16_t addr, int32_t val){
       val=monitorvars[addr].data_lmin;
     }
 
-    memcpy(monitorvars[addr].data_l,&val,4);
+    //memcpy(monitorvars[addr].data_l,&val,4);
 
-    /*
-    *(monitorvars[addr].data_l)=(uint8_t)val;
+   
+    *(monitorvars[addr].data_l)=val;
+     /*
     *(monitorvars[addr].data_l+1)=(uint8_t)(val<<8);
     *(monitorvars[addr].data_l+1)=(uint8_t)(val<<8);*/    
   }else{
