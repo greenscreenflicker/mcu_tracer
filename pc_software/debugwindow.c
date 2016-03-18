@@ -10,8 +10,10 @@ GtkWidget *debugwindow_init_button;
 GtkWidget *debugwindow_stream_button;
 GtkWidget *debugwindow_emergency_button;
 GtkWidget *debugwindow_quit_button;
-
-
+GtkWidget *debugwindow_grid_msg_center;
+GtkWidget *debugwindow_grid_msg_center_del_button;
+GtkWidget *debugwindow_grid_msg_center_treeview;
+GtkListStore  *debugwindow_grid_msg_center_treeview_list_store;
 GMainContext *gtk_context_var;
 
 int system_streaming=0;
@@ -178,6 +180,10 @@ gboolean variables_window_update(struct set_variables *mydd){
 			g_signal_connect (mydd[loop].data_widget, "toggled",  G_CALLBACK (callback_set_variables_changed), NULL);
 		}
 		
+		//Horizontaly expand
+		gtk_widget_set_hexpand (mydd[loop].label_widget, TRUE);
+		gtk_widget_set_hexpand (mydd[loop].data_widget, TRUE);
+		
 		//read write selection
 		if(mydd[loop].rw>0){
 			gtk_widget_set_sensitive (mydd[loop].data_widget, FALSE);
@@ -255,62 +261,126 @@ gboolean variables_window_update_single_var(set_single_var_t *data){
 	return G_SOURCE_REMOVE;	
 }
 
-void gui_get_dummy_read_data(void){
-	//
-	read_variables_data=calloc(sizeof(set_var_t),100);
-		
-	strcpy(read_variables_data[0].label,"Eins");
-	read_variables_data[0].type=1;
-	read_variables_data[0].data_l=1;
-	strcpy(read_variables_data[1].label,"Zwei");
-	read_variables_data[1].type=1;
-	read_variables_data[1].data_l=2;
-	strcpy(read_variables_data[2].label,"Float");
-	read_variables_data[2].type=2;
-	read_variables_data[2].data_f=2.456;
-	strcpy(read_variables_data[3].label,"bool-");
-	read_variables_data[3].type=3;
-	read_variables_data[3].data_l=0;
-	strcpy(read_variables_data[4].label,"bool+");
-	read_variables_data[4].type=3;
-	read_variables_data[4].data_l=1;
- }
- 
-void gui_read_variables_init(){
-	//
-	gui_get_dummy_read_data();
-	debugwindow_read_variables=gtk_grid_new();
-	gtk_widget_set_hexpand (debugwindow_read_variables, TRUE);
-	gtk_widget_set_vexpand (debugwindow_read_variables, TRUE);
-	
-	int loop=0;
-	while(read_variables_data[loop].type){
-		read_variables_data[loop].label_widget=gtk_label_new(read_variables_data[loop].label);
-		
-		char str[30];
-		if(read_variables_data[loop].type==1){
-			sprintf(str, "%i", read_variables_data[loop].data_l);
-		}else if(read_variables_data[loop].type==2){
-			sprintf(str, "%lf", read_variables_data[loop].data_f);
-		}else if(read_variables_data[loop].type==3){
-			if(read_variables_data[loop].data_l==0){
-				strcpy(str,"-");
-			}else{
-				strcpy(str,"+");
-			}
-		}
-		read_variables_data[loop].data_widget=gtk_label_new(str);
-		gtk_grid_attach (GTK_GRID (debugwindow_read_variables), read_variables_data[loop].label_widget, 0, loop, 1, 1); //pos x, pos y, width x, with y
-		gtk_widget_set_hexpand (read_variables_data[loop].label_widget, TRUE);
-		gtk_grid_attach (GTK_GRID (debugwindow_read_variables), read_variables_data[loop].data_widget, 1, loop, 1, 1); //pos x, pos y, width x, with y
-		gtk_widget_set_hexpand (read_variables_data[loop].data_widget, TRUE);
-		loop++;
-	}
- }
- 
-void gui_debug_init(void){
-	//
+unsigned int gui_msgcenterid=0;
+void gui_msg_center_add_msg(char* msg){
+	GtkTreeIter    iter;
+	char timeformat[100];
+	time_t rawtime;
+	struct tm *info;
+	time( &rawtime );
+    info = localtime( &rawtime );
+    strftime(timeformat,80,"%H:%M:%S %d.%m.%Y", info);
+   
+	gtk_list_store_prepend (debugwindow_grid_msg_center_treeview_list_store, &iter);
+	gtk_list_store_set (debugwindow_grid_msg_center_treeview_list_store, &iter,
+					  COL_ID,gui_msgcenterid,
+					  COL_TIME,timeformat,
+					  COL_MSG,msg,
+                      -1);
+    if(gui_msgcenterid>15){
+		GtkTreePath *path;
+		path = gtk_tree_path_new_from_string ("16"); //who required that bad workaround? stupid implementation!
+		gtk_tree_model_get_iter (GTK_TREE_MODEL (debugwindow_grid_msg_center_treeview_list_store),
+                           &iter,
+                           path);
+        gtk_list_store_remove (debugwindow_grid_msg_center_treeview_list_store,
+                       &iter);
+    }
+	gui_msgcenterid=gui_msgcenterid+1;
+	free(msg);
 }
+
+void gui_msg_center_clear_msg(void){
+	gtk_list_store_clear (debugwindow_grid_msg_center_treeview_list_store);
+	gui_msgcenterid=0;
+}
+
+void gui_msg_center_add_msg_test(void){
+	 char *str=malloc(50);
+	 strcpy(str,"This is a test");
+	 gui_msg_center_add_msg(str);
+ }
+ 
+static GtkTreeModel *
+gui_msg_center_message_list_dummy_data (void)
+{
+   GtkListStore  *store;
+  GtkTreeIter    iter;
+  
+  store = gtk_list_store_new (NUM_COLS, G_TYPE_UINT, G_TYPE_STRING,G_TYPE_STRING);
+  debugwindow_grid_msg_center_treeview_list_store=store;
+  
+  return GTK_TREE_MODEL (store);
+}
+
+void gui_msg_center_message_list_create (void){
+  GtkCellRenderer     *renderer;
+  GtkTreeModel        *model;
+  GtkWidget           *view;
+
+  view = gtk_tree_view_new ();
+  gui_msgcenterid=0;
+  /* --- Column #1 --- */
+
+  renderer = gtk_cell_renderer_text_new ();
+  gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (view),
+                                               -1,      
+                                               "#",  
+                                               renderer,
+                                               "text", COL_ID,
+                                               NULL);
+
+  /* --- Column #2 --- */
+
+  renderer = gtk_cell_renderer_text_new ();
+  gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (view),
+                                               -1,      
+                                               "time",  
+                                               renderer,
+                                               "text", COL_TIME,
+                                               NULL);
+  /* --- Column #3 --- */
+
+  renderer = gtk_cell_renderer_text_new ();
+  gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (view),
+                                               -1,      
+                                               "message",  
+                                               renderer,
+                                               "text", COL_MSG,
+                                               NULL);
+
+  model = gui_msg_center_message_list_dummy_data ();
+
+  gtk_tree_view_set_model (GTK_TREE_VIEW (view), model);
+
+  /* The tree view has acquired its own reference to the
+   *  model, so we can drop ours. That way the model will
+   *  be freed automatically when the tree view is destroyed */
+
+  g_object_unref (model);
+  gtk_widget_set_hexpand (view, TRUE);
+  debugwindow_grid_msg_center_treeview=view;
+}
+
+
+
+void gui_msg_center_init(void){
+	//New GRID
+	debugwindow_grid_msg_center=gtk_grid_new ();
+	//Button for deleting messages
+
+	
+
+	gui_msg_center_message_list_create();
+
+	
+	
+	gtk_grid_attach (GTK_GRID (debugwindow_grid_msg_center), debugwindow_grid_msg_center_treeview, 0, 0, 1, 1); //pos x, pos y, width x, with y
+	
+	
+
+}
+ 
 
 void gui_debug_stream(void){
 	if(system_streaming==0){
@@ -346,7 +416,7 @@ void gui_debug_window(void){
                              800, //w
                              600); //h
 	
-	gtk_window_set_title (GTK_WINDOW (debugwindow), "Debug Window");	  
+	gtk_window_set_title (GTK_WINDOW (debugwindow), "MCU Tracer");	  
 	
 	debugwindow_grid=gtk_grid_new (); //Creating Grid
 
@@ -355,26 +425,30 @@ void gui_debug_window(void){
 
 	//Adding variable view. A notebook is used to have different display options.
 	debugwindow_variable_view=gtk_notebook_new();
+	gtk_widget_set_hexpand (debugwindow_variable_view, TRUE);
+	gtk_widget_set_vexpand (debugwindow_variable_view, TRUE);
 	//For now we add only dummy elements
-	gui_read_variables_init();
+	//gui_read_variables_init();
+	variables_window();
 	
 	gtk_notebook_append_page (GTK_NOTEBOOK(debugwindow_variable_view),
-                          debugwindow_read_variables,
-                          gtk_label_new("Read variables"));
+                          debugwindow_set_variables,
+                          gtk_label_new("Variables"));
+    gui_msg_center_init();
 	gtk_notebook_append_page (GTK_NOTEBOOK(debugwindow_variable_view),
-                          gtk_label_new("Clild Label 2"),
-                          gtk_label_new("Tab Label 2"));
+                          debugwindow_grid_msg_center,
+                          gtk_label_new("Messages"));
     gtk_notebook_append_page (GTK_NOTEBOOK(debugwindow_variable_view),
-                          gtk_label_new("Clild Label 3"),
-                          gtk_label_new("Tab Label 3"));                      
+                          gtk_label_new("Int"),
+                          gtk_label_new("Setup"));                      
      
-	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_variable_view, 0, 0, 3, 1);
+	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_variable_view, 0, 0, 5, 1);
 
 	//Adding the control variable box
 	
-	variables_window();
 	
-	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_set_variables, 3, 0, 1, 1); //pos x, pos y, width x, with y
+	
+	//gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_set_variables, 3, 0, 1, 1); //pos x, pos y, width x, with y
 	//Set selection mode of debug window to zero.
 
 	///Adding buttons
@@ -387,14 +461,19 @@ void gui_debug_window(void){
 	debugwindow_stream_button=gtk_button_new_with_label ("Start Streaming");
 	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_stream_button, 1, 1, 1, 1);
 	g_signal_connect (debugwindow_stream_button, "clicked",G_CALLBACK (gui_debug_stream), NULL);
+	//Clear message
+	debugwindow_grid_msg_center_del_button=gtk_button_new_with_label("Clear messages");
+	g_signal_connect (debugwindow_grid_msg_center_del_button, "clicked",G_CALLBACK (gui_msg_center_clear_msg), NULL);
+	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_grid_msg_center_del_button, 2, 1, 1, 1);
+	
 	//Emergency
 	debugwindow_emergency_button=gtk_button_new_with_label ("Emergency");
-	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_emergency_button, 2, 1, 1, 1);
-	//g_signal_connect (debugwindow_emergency_button, "clicked",G_CALLBACK (debug_send), NULL);
+	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_emergency_button, 3, 1, 1, 1);
+	g_signal_connect (debugwindow_emergency_button, "clicked",G_CALLBACK (gui_msg_center_add_msg_test), NULL);
 	
 	//Quit
 	debugwindow_quit_button=gtk_button_new_with_label ("Quit");
-	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_quit_button, 3, 1, 1, 1);
+	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_quit_button, 4, 1, 1, 1);
 	g_signal_connect (debugwindow_quit_button, "clicked",G_CALLBACK (gui_debug_quit), NULL);
 	
 	

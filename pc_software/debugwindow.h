@@ -17,6 +17,14 @@ typedef struct set_single_var{
 	uint32_t val;
 } set_single_var_t;
 
+enum
+{
+  COL_ID = 0,
+  COL_TIME,
+  COL_MSG,
+  NUM_COLS
+} ;
+
 extern GMainContext *gtk_context_var;
 
 

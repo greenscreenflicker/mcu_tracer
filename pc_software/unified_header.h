@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <unistd.h>
+#include <time.h>
 #include "interfacer.h"
 #include "connect.h"
 #include "rs232.h"
