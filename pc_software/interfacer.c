@@ -625,6 +625,115 @@ void monitor_master_allow_decoding(void){
 	pthread_mutex_unlock(&plock_rec_debug_window);
 }
 
+unsigned char workingbuffer[10000];
+unsigned char iterater[10000];
+int portionierer_current_buffer_pos=0;
+
+void portionierer_process(unsigned char *data, int len){
+	//printf("i would process this:");
+	//print_hex_data(data, len);
+	if(len<1) exit(1);
+	monitor_master_decode_string(data,len);
+}
+
+
+int monitor_master_check_parity_dump(unsigned char* buf, int len){
+	unsigned char checksum=xor_checksum2(buf,len-1);
+	if(checksum==buf[len-1]){
+		//printf("integrity: no error detected");
+		return 1;
+	}else{
+		//printf("integrity: 0x%x expected but is 0x%x\n",checksum,buf[len-1]);
+		return 0;
+	}
+}
+
+void portionierer2_move_mem(unsigned char *start,int pos){
+	memcpy(&iterater[0],&workingbuffer[pos],portionierer_current_buffer_pos-pos);
+	memcpy(&workingbuffer[0],&iterater[0],portionierer_current_buffer_pos-pos);
+	portionierer_current_buffer_pos=portionierer_current_buffer_pos-pos;
+}
+
+void monitor_master_portionierer2(unsigned char *data, int len){
+	//Copy data in our area, so we can iterate over it
+	memcpy(&workingbuffer[portionierer_current_buffer_pos],data,len);
+	portionierer_current_buffer_pos=portionierer_current_buffer_pos+len;
+	int startpos,endpos,endpos_ret;
+	
+	int countstartbytes;
+
+	//printf("\n\nbuffer:");
+	//print_hex_data(&workingbuffer[0],portionierer_current_buffer_pos);	
+	PORTIONERER_CONTINUE_PROCESS:
+	countstartbytes=0;
+	//looking for startbyte
+	startpos=monitor_master_find_startbyte(&workingbuffer[0],portionierer_current_buffer_pos);
+	if(startpos==-1){
+		//no data was found, we delete all
+		//printf("Portionier: We only got garbage-deleting it\n");
+		portionierer_current_buffer_pos=0;
+		return;
+	}
+	
+
+	endpos=startpos+1;
+	while(1){
+		endpos_ret=monitor_master_find_startbyte(&workingbuffer[endpos],portionierer_current_buffer_pos-endpos);
+		if(endpos_ret==-1){
+			//we have nothing more to come
+			int ret;
+			ret=monitor_master_check_parity_dump(&workingbuffer[startpos],portionierer_current_buffer_pos-startpos);
+			if(ret){
+				//we can use result;
+				///printf("Portionierer: This last part is valid.\n");
+				portionierer_process(&workingbuffer[startpos],portionierer_current_buffer_pos-startpos);
+				//free buffer
+				portionierer_current_buffer_pos=0;
+				return;
+			}else{
+				//result is unusable, maybe there's more to come;
+				//wait for a later call to come more
+				//printf("Portionier: Nothing more to process\n");
+				return;
+			}
+		}else{
+			endpos_ret=endpos+endpos_ret;
+			//printf("Portionier: We have a possible datastring inbetween %i-%i\nDatastring:",startpos,endpos_ret);
+			//print_hex_data(&workingbuffer[startpos],endpos_ret-startpos);
+			int ret;
+			ret=monitor_master_check_parity_dump(&workingbuffer[startpos],endpos_ret-startpos);
+			if(ret){
+				//printf("Portionier: String valid\n");
+				portionierer_process(&workingbuffer[startpos],endpos_ret-startpos);
+				//remove string from data
+				portionierer2_move_mem(&workingbuffer[endpos_ret],endpos_ret);
+				//printf("->new data buffer looks like this\nworker:");
+				//print_hex_data(&workingbuffer[0],portionierer_current_buffer_pos);
+				//check if we have more data to process
+				goto PORTIONERER_CONTINUE_PROCESS;
+				//return;				
+			}else{
+				//printf("Portionier: Looking for next string\n");
+				endpos=endpos_ret+1;
+				
+				if(countstartbytes>5){
+					//printf("Portionier: we possibly have wrong integrity bit\n");
+					//lets find second start byte
+					startpos=monitor_master_find_startbyte(&workingbuffer[0],portionierer_current_buffer_pos);
+					startpos=monitor_master_find_startbyte(&workingbuffer[startpos+1],portionierer_current_buffer_pos-startpos)+startpos+1;
+					portionierer2_move_mem(&workingbuffer[startpos],startpos);
+					//printf("(%i)new data buffer looks like this\ncrop:",startpos);
+					//print_hex_data(&workingbuffer[0],portionierer_current_buffer_pos);
+					//check if we have more data to process
+					goto PORTIONERER_CONTINUE_PROCESS;					
+				}
+				countstartbytes=countstartbytes+1;
+			}
+		}
+	}
+	
+}
+
 void * monitor_recieve_thread(void){
 	//recieves data;
 	unsigned char buf[4096];
@@ -641,10 +750,8 @@ void * monitor_recieve_thread(void){
 			buf[n] = 0; 
 			printf("recieved:");
 			print_hex_data(&buf[0],n);
-			parityok=monitor_master_check_parity(&buf[0],n);
-			pthread_mutex_lock(&plock_rs232_parity_check);
-			monitor_parity_is_working=parityok;
-			pthread_mutex_unlock(&plock_rs232_parity_check);
+			
+
 			
 			int may_we_decode;
 			pthread_mutex_lock(&plock_rec_debug_window);
@@ -652,7 +759,13 @@ void * monitor_recieve_thread(void){
 			pthread_mutex_unlock(&plock_rec_debug_window);
 			if(may_we_decode==1){
 				//
-				monitor_master_decode_string(&buf[0],n);
+				//monitor_master_decode_string(&buf[0],n);
+				monitor_master_portionierer2(&buf[0],n);
+			}else{
+				parityok=monitor_master_check_parity(&buf[0],n);
+				pthread_mutex_lock(&plock_rs232_parity_check);
+				monitor_parity_is_working=parityok;
+				pthread_mutex_unlock(&plock_rs232_parity_check);
 			}
 			
 		}

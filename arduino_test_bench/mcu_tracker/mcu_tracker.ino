@@ -80,8 +80,8 @@ uint8_t rec_checksum(void){
 }
 
 void mcu_tracer_process(void){
-  mcu_tracer_checksum=0;
   while(1){
+    mcu_tracer_checksum=0;
     if(!(Serial.available())){
       //We have no data, we're done
       return;

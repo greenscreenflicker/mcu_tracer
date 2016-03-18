@@ -333,7 +333,7 @@ void gui_debug_quit(void){
 void gui_debug_init_data(void){
 	monitor_master_req_init();
 	//a short sleep so we dont messed up
-	usleep(5000);
+	//usleep(5000); -->This delay is not required, as we added portionierer
 	monitor_master_req_data();
 }
 
