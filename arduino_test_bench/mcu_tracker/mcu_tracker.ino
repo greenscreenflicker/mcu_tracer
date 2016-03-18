@@ -24,7 +24,7 @@ mcu_tracer_t monitorvars[10];
 
 int global_checksum;
 uint8_t mcu_tracer_checksum;
-int32_t debug1, debug2;
+int32_t debug1, debug2, debugbefore;
 #define MONITOR_ELEMENTS (sizeof(monitorvars)/sizeof(mcu_tracer_t))
 
 void mcu_tracer_fill(void){
@@ -228,6 +228,13 @@ void mcu_tracer_update(uint16_t addr, int32_t val){
   mcu_tracer_inform(addr);
 }
 
+void mcu_tracer_msg(const char* msg){
+  mcu_tracer_write_serial(MCU_TRACER_STARTBYTE);
+  mcu_tracer_write_serial(0xFE);
+  mcu_tracer_write_string(msg);
+  mcu_tracer_send_checksum();
+}
+
 void mcu_tracer_inform(uint16_t addr){
   if(addr>MONITOR_ELEMENTS) return; //we do not have this.
   int32_t val=*(monitorvars[addr].data_l);
@@ -242,14 +249,24 @@ void mcu_tracer_inform(uint16_t addr){
   mcu_tracer_write_serial(val>>(0*8));
   mcu_tracer_send_checksum();
 }
+
+char msg[40];
 void loop() {
   // put your main code here, to run repeatedly:
   mcu_tracer_process();
+  
   if(debug1==0){
     digitalWrite(13, HIGH);
   }else{
     digitalWrite(13, LOW);
   }
+  if(debugbefore!=debug1){
+    itoa(debug1,&msg[0],10);
+    strcat(msg,"=Debug one");
+    mcu_tracer_msg(msg);
+
+  }
+  debugbefore=debug1;
   debug2=analogRead(A0);
   /*
   if(Serial.available()){

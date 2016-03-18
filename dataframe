@@ -58,6 +58,16 @@ MCU->PC
 -SUM(XOR)
 
 
+Order: 0xFE: Freeform Mesage from MCU to PC
+PC->MCU:
+-No possibility to request.
+MCU->PC
+-Startbyte (1 Byte)
+-Order (0xFE)
+-Message
+-Terminator(1)
+-SUM(XOR)
+
 
 Order: 0xFF: Emergency Stop
 

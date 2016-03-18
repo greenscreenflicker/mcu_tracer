@@ -309,8 +309,22 @@ struct set_variables* monitor_master_get_variables2(void){
 			iteration++;
 			decodepos++;
 		}while(1);
+	}else if(order==0xFE){
+		//We recieved a msg from MCU
+		char msg[100];
+		int decodepos=1;
+		int copy=0;
+		while(retbuf[decodepos]!=1){
+			if(decodepos>len){
+				printf("error copying stringname\n");
+				return;
+			}
+			msg[copy++]=msg[decodepos++];
+		}
+		msg[copy]=0;
+		printf("MCU told '%s'\n",msg);
 	}else{
-		printf("Order unkown, ignoring msg.\n");
+		printf("Order 0x%x unkown, ignoring msg.\n",order);
 		free(mydd);
 		return NULL;
 	}
@@ -860,8 +874,25 @@ void monitor_master_decode_string(unsigned char* buf, int len){
 			//senprintf("addr:%i|data:%i\n",singlevar->addr,singlevar->val);
 			inject_call((GSourceFunc)variables_window_update_single_var, singlevar);
 		}
-	}else{
-		printf("Order unkown, ignoring msg.\n");
+	}else if(order==0xFE){
+		//We recieved a msg from MCU
+		char *msg=malloc(sizeof(char)*1000);
+		int decodepos=startbyte+2;
+		int copy=0;
+		while(buf[decodepos]!=1){
+			if(decodepos>len){
+				printf("error copying stringname\n");
+				return;
+			}
+			msg[copy++]=buf[decodepos++];
+		}
+		msg[copy]=0;
+		printf("MCU told '%s'\n",msg);
+
+		inject_call((GSourceFunc)gui_msg_center_add_msg, msg);
+	}
+	else{
+		printf("Order 0x%x unkown, ignoring msg.\n",order);
 		fflush(stdout);
 	}
 }

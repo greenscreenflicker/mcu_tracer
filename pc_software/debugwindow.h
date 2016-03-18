@@ -34,4 +34,5 @@ void inject_call(GSourceFunc func, gpointer data);
 gboolean variables_window_update(struct set_variables *mydd);
 gboolean variables_window_update_vars(uint32_t *datastream);
 gboolean variables_window_update_single_var(set_single_var_t *data);
+gboolean gui_msg_center_add_msg(char* msg);
 gboolean say_hello(void);

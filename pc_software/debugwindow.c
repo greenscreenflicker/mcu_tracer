@@ -262,7 +262,7 @@ gboolean variables_window_update_single_var(set_single_var_t *data){
 }
 
 unsigned int gui_msgcenterid=0;
-void gui_msg_center_add_msg(char* msg){
+gboolean gui_msg_center_add_msg(char* msg){
 	GtkTreeIter    iter;
 	char timeformat[100];
 	time_t rawtime;
@@ -288,6 +288,7 @@ void gui_msg_center_add_msg(char* msg){
     }
 	gui_msgcenterid=gui_msgcenterid+1;
 	free(msg);
+	return G_SOURCE_REMOVE;	
 }
 
 void gui_msg_center_clear_msg(void){
@@ -477,14 +478,20 @@ void gui_debug_window(void){
 	g_signal_connect (debugwindow_quit_button, "clicked",G_CALLBACK (gui_debug_quit), NULL);
 	
 	
-	//Finally showing all
-	gtk_widget_show_all(debugwindow);
+
 
 	//allow the read threat to change our window
 	monitor_master_allow_decoding();
 	//Load our variables
 	gui_debug_init_data();
-
+	
+	char *msg=malloc(100);
+	strcpy(msg,"System Bootup");
+	gui_msg_center_add_msg(msg);
+	
+	
+	//Finally showing all
+	gtk_widget_show_all(debugwindow);
 }
 
 gboolean say_hello(void){
