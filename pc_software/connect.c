@@ -52,6 +52,12 @@ void gui_connect_window_connect2serial( GtkWidget *widget,  gpointer   data ) {
 	}else if(status==1){
 		printf("connection okay");
 		gtk_label_set_text(GTK_LABEL(feedback_box),"connection okay");
+		
+		//Store settings
+		settings_connection->comport=serialinterface;
+		settings_connection->baud=bdrate;
+		settingssaver_store();
+		//Switch to other window
 		gtk_widget_hide(window);
 		gui_debug_window();
 	}
@@ -108,6 +114,8 @@ void gui_connect_window(void){
     gtk_grid_attach (GTK_GRID (table), label_port, 0, 0, 1, 1);
     //Show Label
   
+    //Load stored data
+    settingssaver_load();
     
 
     //Create a combobox
@@ -118,7 +126,7 @@ void gui_connect_window(void){
     for(combo_items=0;combo_items<37;combo_items++){
 		gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo_serial), NULL,comports[combo_items]);
 	}
-    gtk_combo_box_set_active(GTK_COMBO_BOX(combo_serial), 16);
+    gtk_combo_box_set_active(GTK_COMBO_BOX(combo_serial), settings_connection->comport);
 
 	//GtkWidget *testlabel;
 	//testlabel=gtk_label_new("test");
@@ -131,6 +139,8 @@ void gui_connect_window(void){
     gtk_grid_attach (GTK_GRID (table), combo_serial, 1, 0, 1, 1);
     //gtk_widget_show(combo_serial);
     
+
+    
     //Add baud rate
     
     GtkWidget *baud_label;
@@ -140,14 +150,17 @@ void gui_connect_window(void){
     //Add baud rate combo
     combo_baud = gtk_combo_box_text_new();
     char convert2str[20];
-
     {
-		for(combo_items=0;combo_items<sizeof(baudrates);combo_items++){
-			sprintf(convert2str,"%i",baudrates[combo_items]);
+		for(combo_items=0;combo_items<30;combo_items++){
+			//sizeof(baudrates); replaced for 30 to remove anooying warning
+			int val=baudrates[combo_items];
+			
+			sprintf(convert2str,"%i",val);
+			//strcpy(convert2str,"dummy");
 			gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo_baud), NULL,convert2str);
 		}
 	}
-	gtk_combo_box_set_active(GTK_COMBO_BOX(combo_baud), 13);
+	gtk_combo_box_set_active(GTK_COMBO_BOX(combo_baud), settings_connection->baud);
 	gtk_grid_attach (GTK_GRID (table), combo_baud, 1, 1, 1, 1);
     
     //Add feedback box
