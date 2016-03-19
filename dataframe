@@ -4,6 +4,16 @@ Master (PC->MCU)
 
 Startbye (0b10100101 or 0xA5) + Order + Data + SUM(XOR)
 
+Order0: Check if available
+PC->MCU
+-Startbyte (1 Byte)
+-Order (0b0000 0000)
+-SUM(XOR)
+MCU->PC:
+-Startbyte (1 Byte)
+-Order (0b0000 0000)
+-SUM(XOR)
+
 Order 1: Init
 Requests data from MCU: Type=0b0000 0001
 

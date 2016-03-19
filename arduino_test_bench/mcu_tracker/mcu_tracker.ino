@@ -27,6 +27,7 @@ mcu_tracer_t monitorvars[10];
 int global_checksum;
 uint8_t mcu_tracer_checksum;
 int32_t debug1, debug2, debugbefore;
+float debug3;
 #define MONITOR_ELEMENTS (sizeof(monitorvars)/sizeof(mcu_tracer_t))
 
 void mcu_tracer_fill(void){
@@ -38,11 +39,18 @@ void mcu_tracer_fill(void){
   monitorvars[0].data_lmax=INT32_MAX;
 
   monitorvars[1].type=1;
-  monitorvars[1].rw=0;
+  monitorvars[1].rw=1;
   monitorvars[1].data_l=&debug2;
-  strcpy(monitorvars[1].varname,"ADC RAW");
+  strcpy(monitorvars[1].varname,"ADC raw");
   monitorvars[1].data_lmin=0;
   monitorvars[1].data_lmax=1;
+
+  monitorvars[2].type=2;
+  monitorvars[2].rw=1;
+  monitorvars[2].data_f=&debug3;
+  strcpy(monitorvars[2].varname,"ADC converted");
+  monitorvars[2].data_fmin=0;
+  monitorvars[2].data_fmax=4;
 }
 
 void setup() {
@@ -114,6 +122,11 @@ void mcu_tracer_process(void){
         //erial.println("Checksum ok");
         mcu_tracer_init();
       }
+    }else if(order==0){
+      if(rec_checksum()){
+        mcu_tracer_init_reply();
+      }
+        
     }else if(order==2){
       if(rec_checksum()){
         mcu_tracer_vals();
@@ -257,6 +270,12 @@ void mcu_tracer_inform(uint16_t addr){
   mcu_tracer_send_checksum();
 }
 
+void mcu_tracer_init_reply(void){
+  mcu_tracer_write_serial(MCU_TRACER_STARTBYTE);
+  mcu_tracer_write_serial(0x00);
+  mcu_tracer_send_checksum();
+}
+
 void mcu_tracer_emergency_reply(void){
   mcu_tracer_write_serial(MCU_TRACER_STARTBYTE);
   mcu_tracer_write_serial(0xFF);
@@ -272,7 +291,7 @@ void loop() {
   // put your main code here, to run repeatedly:
   mcu_tracer_process();
   
-  if(debug1==0){
+  if(debug1==1){
     digitalWrite(13, HIGH);
   }else{
     digitalWrite(13, LOW);
@@ -285,6 +304,7 @@ void loop() {
   }
   debugbefore=debug1;
   debug2=analogRead(A0);
+  debug3=debug2 * (5.0 / 1023.0);
   /*
   if(Serial.available()){
     Serial.write(Serial.read());

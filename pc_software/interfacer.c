@@ -114,7 +114,7 @@ int monitor_test_connection(int number, int baud){
 	//casting is needed to avoid warning, though not beautiful.
 	 pthread_create(&th_rec,NULL,(void * (*)(void *))monitor_recieve_thread,NULL);
    
-	char connection_str[]={MCU_TRACER_STARTBYTE,1,MCU_TRACER_STARTBYTE^1};
+	char connection_str[]={MCU_TRACER_STARTBYTE,0,MCU_TRACER_STARTBYTE};
 	int parityok=0;
 	
 	i=1000;
