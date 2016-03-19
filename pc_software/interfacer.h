@@ -1,5 +1,5 @@
 #define MCU_TRACER_STARTBYTE 0xA5
-
+#define PRINT_RS232_DATA 0
 
 //
 int monitor_test_connection(int number, int baud);

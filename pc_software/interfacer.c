@@ -96,7 +96,9 @@ int monitor_test_connection(int number, int baud){
 	  bdrate=baud;      
 
 	unsigned char buf[4096];
+	#if PRINT_RS232_DATA==1
 	printf("up (com:%i b:%i)\n",cport_nr,bdrate);
+	#endif
 	char mode[]={'8','N','1',0};
 
 
@@ -148,12 +150,15 @@ int monitor_test_connection(int number, int baud){
 
 int monitor_master_send(unsigned char *data, int len){
 	unsigned char buf[4096];
-	printf("req data:");
+
 	
 	buf[0]=MCU_TRACER_STARTBYTE;
 	memcpy(&buf[1],data,len);
 	buf[1+len]=xor_checksum2(data,len)^MCU_TRACER_STARTBYTE;
+	#if PRINT_RS232_DATA==1
+	printf("req data:");
 	print_hex_data(&buf[0],len+2);
+	#endif
 	//printf("\n");
 	return RS232_SendBuf(_comport,buf,len+2);
 }
@@ -359,10 +364,10 @@ void * monitor_recieve_thread(void){
 		pthread_mutex_unlock(&plock_rs232);
 		if(n > 0){
 			buf[n] = 0; 
+			#if PRINT_RS232_DATA==1
 			printf("recieved:");
 			print_hex_data(&buf[0],n);
-			
-
+			#endif
 			
 			int may_we_decode;
 			pthread_mutex_lock(&plock_rec_debug_window);
