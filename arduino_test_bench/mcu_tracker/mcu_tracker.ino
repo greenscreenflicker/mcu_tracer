@@ -20,6 +20,8 @@ typedef struct mcu_tracer{
   };
 } mcu_tracer_t;
 
+
+
 mcu_tracer_t monitorvars[10];
 
 int global_checksum;
@@ -136,9 +138,14 @@ void mcu_tracer_process(void){
       if(rec_checksum()){
         mcu_tracer_update(arraynumber,data);
       }
+    }else if(order=0xFF){
+      if(rec_checksum()){
+        //execute emergency function
+        mcu_tracer_emergency();
+        mcu_tracer_emergency_reply();
+      }
     }else{
-      //Serial.println("Order unkown");
-      //Serial.print(order,HEX);
+      mcu_tracer_msg("recieved unkown order");
     }
   }
 }
@@ -248,6 +255,16 @@ void mcu_tracer_inform(uint16_t addr){
   mcu_tracer_write_serial(val>>(1*8));
   mcu_tracer_write_serial(val>>(0*8));
   mcu_tracer_send_checksum();
+}
+
+void mcu_tracer_emergency_reply(void){
+  mcu_tracer_write_serial(MCU_TRACER_STARTBYTE);
+  mcu_tracer_write_serial(0xFF);
+  mcu_tracer_send_checksum();
+}
+
+void mcu_tracer_emergency(void){
+  mcu_tracer_msg("Place here your emergency code");
 }
 
 char msg[40];

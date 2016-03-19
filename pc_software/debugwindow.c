@@ -287,6 +287,7 @@ gboolean gui_msg_center_add_msg(char* msg){
                        &iter);
     }
 	gui_msgcenterid=gui_msgcenterid+1;
+	gtk_widget_show(debugwindow_grid_msg_center_treeview); //make sure we see added element
 	free(msg);
 	return G_SOURCE_REMOVE;	
 }
@@ -382,6 +383,13 @@ void gui_msg_center_init(void){
 
 }
  
+void gui_debug_emergency(void){
+	//
+	monitor_master_emergency(); //send to microcontroller
+	char *msg=malloc(100);
+	strcpy(msg,"Emergency button pressed");
+	gui_msg_center_add_msg(msg);
+}
 
 void gui_debug_stream(void){
 	if(system_streaming==0){
@@ -471,7 +479,7 @@ void gui_debug_window(void){
 	//Emergency
 	debugwindow_emergency_button=gtk_button_new_with_label ("Emergency");
 	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_emergency_button, 3, 1, 1, 1);
-	g_signal_connect (debugwindow_emergency_button, "clicked",G_CALLBACK (gui_msg_center_add_msg_test), NULL);
+	g_signal_connect (debugwindow_emergency_button, "clicked",G_CALLBACK (gui_debug_emergency), NULL);
 	
 	//Quit
 	debugwindow_quit_button=gtk_button_new_with_label ("Quit");

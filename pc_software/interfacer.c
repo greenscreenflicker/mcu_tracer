@@ -148,12 +148,12 @@ int monitor_test_connection(int number, int baud){
 
 int monitor_master_send(unsigned char *data, int len){
 	unsigned char buf[4096];
-	//printf("req data:");
+	printf("req data:");
 	
 	buf[0]=MCU_TRACER_STARTBYTE;
 	memcpy(&buf[1],data,len);
 	buf[1+len]=xor_checksum2(data,len)^MCU_TRACER_STARTBYTE;
-	//print_hex_data(&buf[0],len+2);
+	print_hex_data(&buf[0],len+2);
 	//printf("\n");
 	return RS232_SendBuf(_comport,buf,len+2);
 }
@@ -182,6 +182,11 @@ void monitor_master_write_var(uint16_t num, int32_t val){
 	monitor_master_send(data,7);
 }
 
+void monitor_master_emergency(void){
+	//requests data stream of all data;
+	unsigned char data[]={0xFF};
+	monitor_master_send(data,1);
+}
 
 
 void monitor_master_req_frequently(void){
@@ -354,8 +359,8 @@ void * monitor_recieve_thread(void){
 		pthread_mutex_unlock(&plock_rs232);
 		if(n > 0){
 			buf[n] = 0; 
-			//printf("recieved:");
-			//print_hex_data(&buf[0],n);
+			printf("recieved:");
+			print_hex_data(&buf[0],n);
 			
 
 			
@@ -482,9 +487,14 @@ void monitor_master_decode_string(unsigned char* buf, int len){
 		//printf("MCU told '%s'\n",msg);
 
 		inject_call((GSourceFunc)gui_msg_center_add_msg, msg);
-	}
-	else{
-		printf("Order 0x%x unkown, ignoring msg.\n",order);
+	}else if(order==0xFF){
+		char *msg=malloc(sizeof(char)*1000);
+		strcpy(msg,"MCU send emergency code");
+		inject_call((GSourceFunc)gui_msg_center_add_msg, msg);
+	}else{
+		char *msg=malloc(sizeof(char)*1000);
+		sprintf(msg,"Order 0x%x unkown, ignoring msg.\n",order);
+		inject_call((GSourceFunc)gui_msg_center_add_msg, msg);
 		fflush(stdout);
 	}
 }
