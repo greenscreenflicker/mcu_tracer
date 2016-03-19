@@ -59,10 +59,13 @@ struct set_variables* dummydata(void){
 
 //Toogle Button variable change. Writes changes to memory
 void callback_set_variables_changed(GtkWidget *widget, gpointer   data ){
-
+	//printf("go callback\n");
+	
     gint loop=0;
     while(set_variables_data[loop].type){
-		if(set_variables_data[loop].data_widget==widget){	
+		//printf("loop %i (%i==%i)",loop,set_variables_data[loop].data_widget,widget);
+		if(set_variables_data[loop].data_widget==widget){
+			//printf("go callback\n");	
 			if(set_variables_data[loop].type!=3){
 				printf("this is not a toogle button.\n");
 			}
@@ -73,12 +76,15 @@ void callback_set_variables_changed(GtkWidget *widget, gpointer   data ){
 				set_variables_data[loop].data_l=0;
 				//printf("%s: deactive\n",set_variables_data[loop].label);
 			}
+			fflush(stdout);
 			monitor_master_write_var(loop,set_variables_data[loop].data_l);
 			return;
 		}
 
 		loop=loop+1;
 	}
+	printf("button not found\n");
+	fflush(stdout);
 }
 
 //If you press enter, the value is saved to the right elements.
@@ -86,6 +92,7 @@ void callback_set_variables_changed_text(GtkWidget *widget, gpointer   data ){
 	//printf("We had a text enter.\n");
     gint loop=0;
     while(set_variables_data[loop].type){
+		//printf("loop %i (%i==%i)",loop,set_variables_data[loop].data_widget,widget);
 		if(set_variables_data[loop].data_widget==widget){	
 			if(set_variables_data[loop].type==1){
 				set_variables_data[loop].data_l=atoi(gtk_entry_get_text(GTK_ENTRY(set_variables_data[loop].data_widget)));
@@ -172,12 +179,13 @@ gboolean variables_window_update(struct set_variables *mydd){
 			g_signal_connect (mydd[loop].data_widget, "activate",  G_CALLBACK (callback_set_variables_changed_text), NULL);
 			g_signal_connect (mydd[loop].data_widget, "state-changed",  G_CALLBACK (callback_set_variables_no_enter), NULL);
 		}else if(mydd[loop].type==3){
-			mydd[loop].data_widget=gtk_check_button_new ();
 			//gboolean active=(mydd[0].data_l!=0);
+			mydd[loop].data_widget=gtk_check_button_new ();
 			gboolean active=TRUE;
 			if(mydd[loop].data_l==0){
 				active=FALSE;
 			}
+			
 			gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(mydd[loop].data_widget),active);
 			g_signal_connect (mydd[loop].data_widget, "toggled",  G_CALLBACK (callback_set_variables_changed), NULL);
 		}
@@ -223,13 +231,15 @@ gboolean variables_window_update_vars(uint32_t *datastream){
 				gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
 			}
 		}else if(mydd[loop].type==3){
-			mydd[loop].data_widget=gtk_check_button_new ();
+			//mydd[loop].data_widget=gtk_check_button_new ();
 			//gboolean active=(mydd[0].data_l!=0);
 			gboolean active=TRUE;
 			if(mydd[loop].data_l==0){
 				active=FALSE;
 			}
+			g_signal_handlers_block_by_func(mydd[loop].data_widget,callback_set_variables_changed,NULL);
 			gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(mydd[loop].data_widget),active);
+			g_signal_handlers_unblock_by_func(mydd[loop].data_widget,callback_set_variables_changed,NULL);
 		}	
 		loop=loop+1;
 	}
@@ -251,13 +261,13 @@ gboolean variables_window_update_single_var(set_single_var_t *data){
 		sprintf(str, "%lf", mydd[loop].data_f);
 		gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
 	}else if(mydd[loop].type==3){
-		mydd[loop].data_widget=gtk_check_button_new ();
-		//gboolean active=(mydd[0].data_l!=0);
 		gboolean active=TRUE;
 		if(mydd[loop].data_l==0){
 			active=FALSE;
 		}
+		g_signal_handlers_block_by_func(mydd[loop].data_widget,callback_set_variables_changed,NULL);
 		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(mydd[loop].data_widget),active);
+		g_signal_handlers_unblock_by_func(mydd[loop].data_widget,callback_set_variables_changed,NULL);
 	}
 	free(data);
 	return G_SOURCE_REMOVE;	

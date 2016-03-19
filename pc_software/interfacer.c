@@ -66,7 +66,7 @@ void print_hex_data(unsigned char* buf, int len){
 	int i;
 	printf("[%i]:",len);
 	for(i=0; i < len; i++){
-		printf("%x-",buf[i]);
+		printf("%x(%c)-",buf[i],buf[i]);
 	}
 	printf("\n");
 	fflush(stdout);
