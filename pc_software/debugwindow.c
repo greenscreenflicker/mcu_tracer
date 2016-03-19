@@ -16,6 +16,8 @@ GtkWidget *debugwindow_grid_msg_center_treeview;
 GtkListStore  *debugwindow_grid_msg_center_treeview_list_store;
 GMainContext *gtk_context_var;
 
+GtkWidget *debugwindow_scroll_msg;
+
 int system_streaming=0;
 
 
@@ -124,7 +126,7 @@ void callback_set_variables_no_enter(GtkWidget *widget, gpointer   usrdata ){
 void
 variables_window (void)
 {
-	debugwindow_set_variables=gtk_frame_new ("Set variables");
+	debugwindow_set_variables=gtk_frame_new ("MCU variables");
 	debugwindow_set_variables_grid=gtk_grid_new();
     gtk_container_add(GTK_CONTAINER(debugwindow_set_variables), debugwindow_set_variables_grid);
     //Now we can add elements to the grid
@@ -277,6 +279,7 @@ gboolean gui_msg_center_add_msg(char* msg){
 					  COL_TIME,timeformat,
 					  COL_MSG,msg,
                       -1);
+    /*
     if(gui_msgcenterid>15){
 		GtkTreePath *path;
 		path = gtk_tree_path_new_from_string ("16"); //who required that bad workaround? stupid implementation!
@@ -285,7 +288,7 @@ gboolean gui_msg_center_add_msg(char* msg){
                            path);
         gtk_list_store_remove (debugwindow_grid_msg_center_treeview_list_store,
                        &iter);
-    }
+    }*/
 	gui_msgcenterid=gui_msgcenterid+1;
 	gtk_widget_show(debugwindow_grid_msg_center_treeview); //make sure we see added element
 	//gtk_widget_show_all(debugwindow);
@@ -377,7 +380,7 @@ void gui_msg_center_message_list_create (void){
 
 void gui_msg_center_init(void){
 	//New GRID
-	debugwindow_grid_msg_center=gtk_grid_new ();
+	//debugwindow_grid_msg_center=gtk_grid_new ();
 	//Button for deleting messages
 
 	
@@ -386,10 +389,12 @@ void gui_msg_center_init(void){
 
 	
 	
-	gtk_grid_attach (GTK_GRID (debugwindow_grid_msg_center), debugwindow_grid_msg_center_treeview, 0, 0, 1, 1); //pos x, pos y, width x, with y
+	//gtk_grid_attach (GTK_GRID (debugwindow_grid_msg_center), debugwindow_grid_msg_center_treeview, 0, 0, 1, 1); //pos x, pos y, width x, with y
 	
-	
-
+	debugwindow_scroll_msg=gtk_scrolled_window_new (NULL, NULL);
+	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (debugwindow_scroll_msg),
+                                    GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
+    gtk_container_add(GTK_CONTAINER(debugwindow_scroll_msg),debugwindow_grid_msg_center_treeview);
 }
  
 void gui_debug_emergency(void){
@@ -424,6 +429,10 @@ void gui_debug_init_data(void){
 	//a short sleep so we dont messed up
 	//usleep(5000); -->This delay is not required, as we added portionierer
 	monitor_master_req_data();
+	gui_msg_center_clear_msg();
+	char *msg=malloc(100);
+	strcpy(msg,"Debugging session started");
+	gui_msg_center_add_msg(msg);
 }
 
 void gui_notebook_switched_page(void){
@@ -458,12 +467,15 @@ void gui_debug_window(void){
                           debugwindow_set_variables,
                           gtk_label_new("Variables"));
     gui_msg_center_init();
+    
+
 	gtk_notebook_append_page (GTK_NOTEBOOK(debugwindow_variable_view),
-                          debugwindow_grid_msg_center,
+                          debugwindow_scroll_msg,
                           gtk_label_new("Messages"));
+                          /*
     gtk_notebook_append_page (GTK_NOTEBOOK(debugwindow_variable_view),
-                          gtk_label_new("Int"),
-                          gtk_label_new("Setup"));                      
+                          gtk_label_new("unimplemented feature"),
+                          gtk_label_new("Setup"));    */                  
      
 	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_variable_view, 0, 0, 5, 1);
 	//adding signal
@@ -508,10 +520,9 @@ void gui_debug_window(void){
 	monitor_master_allow_decoding();
 	//Load our variables
 	gui_debug_init_data();
+	gui_debug_stream(); //Start streaming automatically
 	
-	char *msg=malloc(100);
-	strcpy(msg,"System Bootup");
-	gui_msg_center_add_msg(msg);
+
 	
 	
 	//Finally showing all
