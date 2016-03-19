@@ -288,8 +288,17 @@ gboolean gui_msg_center_add_msg(char* msg){
     }
 	gui_msgcenterid=gui_msgcenterid+1;
 	gtk_widget_show(debugwindow_grid_msg_center_treeview); //make sure we see added element
+	//gtk_widget_show_all(debugwindow);
 	free(msg);
 	return G_SOURCE_REMOVE;	
+}
+
+void gui_treeview_fix(void){
+	//
+	GtkTreeIter    iter;
+	gtk_list_store_prepend (debugwindow_grid_msg_center_treeview_list_store, &iter);
+	gtk_list_store_remove (debugwindow_grid_msg_center_treeview_list_store,&iter);
+	gtk_widget_show(debugwindow_grid_msg_center_treeview);
 }
 
 void gui_msg_center_clear_msg(void){
@@ -417,6 +426,10 @@ void gui_debug_init_data(void){
 	monitor_master_req_data();
 }
 
+void gui_notebook_switched_page(void){
+	gui_treeview_fix();
+}
+
 void gui_debug_window(void){
 	//printf("Starting debug window\n");
 	
@@ -453,7 +466,9 @@ void gui_debug_window(void){
                           gtk_label_new("Setup"));                      
      
 	gtk_grid_attach (GTK_GRID (debugwindow_grid), debugwindow_variable_view, 0, 0, 5, 1);
-
+	//adding signal
+	g_signal_connect (debugwindow_variable_view, "switch-page",G_CALLBACK (gui_notebook_switched_page), NULL);
+	
 	//Adding the control variable box
 	
 	
