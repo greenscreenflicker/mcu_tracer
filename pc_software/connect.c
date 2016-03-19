@@ -50,7 +50,7 @@ void gui_connect_window_connect2serial( GtkWidget *widget,  gpointer   data ) {
 		gtk_label_set_text(GTK_LABEL(feedback_box),"Device not responding");
 		return;
 	}else if(status==1){
-		printf("connection okay");
+		//printf("connection okay");
 		gtk_label_set_text(GTK_LABEL(feedback_box),"connection okay");
 		
 		//Store settings

@@ -87,7 +87,7 @@ void callback_set_variables_changed_text(GtkWidget *widget, gpointer   data ){
 		if(set_variables_data[loop].data_widget==widget){	
 			if(set_variables_data[loop].type==1){
 				set_variables_data[loop].data_l=atoi(gtk_entry_get_text(GTK_ENTRY(set_variables_data[loop].data_widget)));
-				printf("entered: %i\n",set_variables_data[loop].data_l);
+				//printf("entered: %i\n",set_variables_data[loop].data_l);
 			}else if(set_variables_data[loop].type==2){
 				set_variables_data[loop].data_f=atof(gtk_entry_get_text(GTK_ENTRY(set_variables_data[loop].data_widget)));
 			}
@@ -240,7 +240,7 @@ gboolean variables_window_update_single_var(set_single_var_t *data){
 	struct set_variables *mydd;
 	mydd=set_variables_data;
 	mydd[loop].data_l=data->val;
-	printf("addr:%i|data:%i\n",data->addr,data->val);
+	//printf("addr:%i|data:%i\n",data->addr,data->val);
 	char str[30];
 	if(mydd[loop].type==1){
 		sprintf(str, "%i", mydd[loop].data_l);
@@ -398,6 +398,7 @@ void gui_debug_stream(void){
 }
 
 void gui_debug_quit(void){
+	monitor_rs232_disconnect();
 	gtk_main_quit ();
 }
 
@@ -409,7 +410,7 @@ void gui_debug_init_data(void){
 }
 
 void gui_debug_window(void){
-	printf("Starting debug window\n");
+	//printf("Starting debug window\n");
 	
     debugwindow = gtk_window_new (GTK_WINDOW_TOPLEVEL);
     gtk_window_set_position(GTK_WINDOW(debugwindow),GTK_WIN_POS_CENTER);
