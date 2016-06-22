@@ -25,37 +25,6 @@ int system_streaming=0;
 struct set_variables *set_variables_data;
 struct set_variables *read_variables_data;
 
-struct set_variables* dummydata(void){
-	struct set_variables *mydd;
-	//important to use calloc
-	
-	mydd=calloc(sizeof(set_var_t),100);
-	
-	strcpy(mydd[0].label,"Long");
-	mydd[0].type=1;
-	mydd[0].data_l=1234;
-	strcpy(mydd[1].label,"Float");
-	mydd[1].type=2;
-	mydd[1].data_f=5678.4;
-	strcpy(mydd[2].label,"Toggle A");
-	mydd[2].type=3;
-	mydd[2].data_l=1;
-	strcpy(mydd[3].label,"Toggle D");
-	mydd[3].type=3;
-	mydd[3].data_l=0;
-	set_variables_data=mydd;
-	strcpy(mydd[4].label,"Toggle Dn");
-	mydd[4].type=3;
-	mydd[4].rw=1;
-	mydd[4].data_l=0;
-	set_variables_data=mydd;
-	strcpy(mydd[5].label,"Float");
-	mydd[5].type=2;
-	mydd[5].rw=1;
-	mydd[5].data_f=5678.4;
-	//monitor_master_get_variables((char*) mydd);
-	return mydd;
-}
 
 //Toogle Button variable change. Writes changes to memory
 void callback_set_variables_changed(GtkWidget *widget, gpointer   data ){
@@ -530,6 +499,7 @@ void gui_debug_window(void){
 	monitor_master_allow_decoding();
 	//Load our variables
 	gui_debug_init_data();
+	usleep(100000); //give mcu some time to react
 	gui_debug_stream(); //Start streaming automatically
 	
 

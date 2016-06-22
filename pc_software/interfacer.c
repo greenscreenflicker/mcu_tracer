@@ -156,8 +156,9 @@ int monitor_master_send(unsigned char *data, int len){
 	memcpy(&buf[1],data,len);
 	buf[1+len]=xor_checksum2(data,len)^MCU_TRACER_STARTBYTE;
 	#if PRINT_RS232_DATA==1
-	printf("req data:");
+	printf("Send:");
 	print_hex_data(&buf[0],len+2);
+	printf("\n");
 	#endif
 	//printf("\n");
 	return RS232_SendBuf(_comport,buf,len+2);
@@ -249,6 +250,14 @@ void portionierer_process(unsigned char *data, int len){
 	//printf("i would process this:");
 	//print_hex_data(data, len);
 	if(len<1) exit(1);
+	if(len<3){
+		printf("Portionierer: Here must be something wrong\n");
+	}
+	#if PRINT_RS232_DATA==1
+	printf("REC:");
+	print_hex_data(&data[0],len);
+	printf("\n");
+	#endif
 	monitor_master_decode_string(data,len);
 }
 
@@ -496,9 +505,11 @@ void monitor_master_decode_string(unsigned char* buf, int len){
 		char *msg=malloc(sizeof(char)*1000);
 		strcpy(msg,"MCU send emergency code");
 		inject_call((GSourceFunc)gui_msg_center_add_msg, msg);
+	}else if(order==0){
+		//ping, not yet implemented
 	}else{
 		char *msg=malloc(sizeof(char)*1000);
-		sprintf(msg,"Order 0x%x unkown, ignoring msg.\n",order);
+		sprintf(msg,"Order 0x%x unkown, ignoring msg.",order);
 		inject_call((GSourceFunc)gui_msg_center_add_msg, msg);
 		fflush(stdout);
 	}
