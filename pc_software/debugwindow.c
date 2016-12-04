@@ -2,7 +2,11 @@
 
 GtkWidget *debugwindow;
 GtkWidget *debugwindow_grid;
+GtkWidget *debugwindow_grid_var_func;
+GtkWidget *debugwindow_varfunc_cont;
 GtkWidget *debugwindow_variable_view;
+GtkWidget *debugwindow_fonmcu;
+GtkWidget *debugwindow_fonmcu_grid;
 GtkWidget *debugwindow_set_variables;
 GtkWidget *debugwindow_set_variables_grid;
 GtkWidget *debugwindow_read_variables;
@@ -24,7 +28,7 @@ int system_streaming=0;
 
 struct set_variables *set_variables_data;
 struct set_variables *read_variables_data;
-
+struct mcu_func *mcu_functions;
 
 //Toogle Button variable change. Writes changes to memory
 void callback_set_variables_changed(GtkWidget *widget, gpointer   data ){
@@ -99,16 +103,28 @@ void callback_set_variables_no_enter(GtkWidget *widget, gpointer   usrdata ){
 }
 
 
-void
-variables_window (void)
-{
+void variables_window (void){
+	debugwindow_varfunc_cont=gtk_grid_new();
+	
 	debugwindow_set_variables=gtk_frame_new ("MCU variables");
 	debugwindow_set_variables_grid=gtk_grid_new();
-    gtk_container_add(GTK_CONTAINER(debugwindow_set_variables), debugwindow_set_variables_grid);
-    //Now we can add elements to the grid
+    gtk_container_add(GTK_CONTAINER(debugwindow_set_variables), debugwindow_set_variables_grid);  	
+	gtk_grid_attach(GTK_GRID(debugwindow_varfunc_cont),debugwindow_set_variables,1,1,1,1);
+	//adjust spacing
+
+	
+	//Now we can add elements to the grid
     set_variables_data=NULL;
  
-
+	//Draw functions frame
+	debugwindow_fonmcu=gtk_frame_new("Functions");
+	gtk_widget_set_vexpand (debugwindow_fonmcu, TRUE);
+	gtk_widget_set_hexpand (debugwindow_fonmcu, TRUE);
+	debugwindow_fonmcu_grid=gtk_grid_new();
+	gtk_container_add(GTK_CONTAINER(debugwindow_fonmcu), debugwindow_fonmcu_grid);  	
+	
+	FuncOnMCU_dummydata();
+	gtk_grid_attach(GTK_GRID(debugwindow_varfunc_cont),debugwindow_fonmcu,2,1,1,1);
 }
 
 gboolean variables_window_update(struct set_variables *mydd){
@@ -136,13 +152,13 @@ gboolean variables_window_update(struct set_variables *mydd){
 	
 		char str[30];
 		if(mydd[loop].type==1){
-			sprintf(str, "%i", mydd[loop].data_l);
+			snprintf(str,30, "%i", mydd[loop].data_l);
 			mydd[loop].data_widget=gtk_entry_new();
 			gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
 			g_signal_connect (mydd[loop].data_widget, "activate",  G_CALLBACK (callback_set_variables_changed_text), NULL);
 			g_signal_connect (mydd[loop].data_widget, "state-changed",  G_CALLBACK (callback_set_variables_no_enter), NULL);
 		}else if(mydd[loop].type==2){
-			sprintf(str, "%lf", mydd[loop].data_f);
+			snprintf(str,30, "%lf", mydd[loop].data_f);
 			mydd[loop].data_widget=gtk_entry_new();
 			gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
 			g_signal_connect (mydd[loop].data_widget, "activate",  G_CALLBACK (callback_set_variables_changed_text), NULL);
@@ -173,6 +189,8 @@ gboolean variables_window_update(struct set_variables *mydd){
 	
 		loop=loop+1;
 	}
+	//adjust spacing to have equal appreance
+	gtk_grid_set_row_spacing(GTK_GRID(debugwindow_set_variables_grid),3);
 	//printf("%i: creating %s\n",1,mydd[1].label);
 	gtk_widget_show_all(debugwindow_set_variables_grid);
 	return G_SOURCE_REMOVE;
@@ -224,10 +242,10 @@ gboolean variables_window_update_single_var(set_single_var_t *data){
 	//printf("addr:%i|data:%i\n",data->addr,data->val);
 	char str[30];
 	if(mydd[loop].type==1){
-		sprintf(str, "%i", mydd[loop].data_l);
+		snprintf(str, 30,"%i", mydd[loop].data_l);
 		gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
 	}else if(mydd[loop].type==2){
-		sprintf(str, "%lf", mydd[loop].data_f);
+		snprintf(str, 30, "%lf", mydd[loop].data_f);
 		gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
 	}else if(mydd[loop].type==3){
 		gboolean active=TRUE;
@@ -241,6 +259,67 @@ gboolean variables_window_update_single_var(set_single_var_t *data){
 	free(data);
 	return G_SOURCE_REMOVE;	
 }
+
+
+// FuncOnMCU
+void callback_func_clicked(GtkWidget *widget, gpointer   data ){
+	int loop=0;
+    while(mcu_functions[loop].id>0){
+		if(mcu_functions[loop].button==widget){
+			//we found it
+			printf("ID %i was clicked.\n",mcu_functions[loop].id);
+			return;
+		}
+		loop++;
+	}
+}
+
+void FuncOnMCU_dummydata(void){
+	mcu_func_t *mcufunctions=malloc(sizeof(mcu_func_t)*5);
+	int fill=0;
+	strcpy(mcufunctions[fill].name,"button 1");
+	mcufunctions[fill].id=1;
+	// next item
+	fill=fill+1;
+	strcpy(mcufunctions[fill].name,"button 2");
+	mcufunctions[fill].id=2;	
+	fill=fill+1;
+	strcpy(mcufunctions[fill].name,"button 3");
+	mcufunctions[fill].id=3;
+	fill=fill+1;
+	mcufunctions[fill].id=-1;
+	FuncOnMCU_update(mcufunctions);
+}
+
+	
+
+gboolean FuncOnMCU_update(mcu_func_t *mcufunctions){
+	//recrusivly destroy grid
+	gtk_widget_destroy(debugwindow_fonmcu_grid);
+//	free(debugwindow_fonmcu_grid); //free óld memory
+	
+	//create new grid
+	debugwindow_fonmcu_grid=gtk_grid_new();
+	int data=0;
+	while(mcufunctions[data].id>0){
+		//Add buttons
+		mcufunctions[data].button=gtk_button_new_with_label(mcufunctions[data].name);
+		g_signal_connect (mcufunctions[data].button, "clicked",G_CALLBACK (callback_func_clicked), NULL);
+		gtk_widget_set_hexpand(mcufunctions[data].button,TRUE);
+		gtk_grid_attach (GTK_GRID (debugwindow_fonmcu_grid), mcufunctions[data].button, 1, 1+data, 1, 1);
+		data=data+1;
+	}
+	gtk_container_add(GTK_CONTAINER(debugwindow_fonmcu), debugwindow_fonmcu_grid); 
+	gtk_widget_show_all(debugwindow_fonmcu);
+	mcu_functions=mcufunctions;
+	return G_SOURCE_REMOVE;
+}
+
+
+
+
+/* Message center */
+
 
 unsigned int gui_msgcenterid=0;
 gboolean gui_msg_center_add_msg(char* msg){
@@ -408,6 +487,8 @@ void gui_debug_init_data(void){
 	//a short sleep so we dont messed up
 	//usleep(5000); -->This delay is not required, as we added portionierer
 	monitor_master_req_data();
+	//request function data
+	monitor_master_func_data();
 	gui_msg_center_clear_msg();
 	char *msg=malloc(100);
 	strcpy(msg,"Debugging session started");
@@ -443,7 +524,7 @@ void gui_debug_window(void){
 	variables_window();
 	
 	gtk_notebook_append_page (GTK_NOTEBOOK(debugwindow_variable_view),
-                          debugwindow_set_variables,
+                          debugwindow_varfunc_cont,
                           gtk_label_new("Variables"));
     gui_msg_center_init();
     

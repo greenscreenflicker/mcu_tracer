@@ -188,6 +188,11 @@ void monitor_master_write_var(uint16_t num, int32_t val){
 	monitor_master_send(data,7);
 }
 
+void monitor_master_func_data(void){
+	unsigned char data[]={0x08};
+	monitor_master_send(data,1);
+}
+
 void monitor_master_emergency(void){
 	//requests data stream of all data;
 	unsigned char data[]={0xFF};
@@ -431,7 +436,7 @@ void monitor_master_decode_string(unsigned char* buf, int len){
 			int copy=0;
 			while(buf[decodepos]!=1){
 				if(decodepos>len){
-					printf("error copying stringname\n");
+					printf("Order1: error copying stringname\n");
 					return;
 				}
 				variablename[copy++]=buf[decodepos++];
@@ -485,6 +490,32 @@ void monitor_master_decode_string(unsigned char* buf, int len){
 			//senprintf("addr:%i|data:%i\n",singlevar->addr,singlevar->val);
 			inject_call((GSourceFunc)variables_window_update_single_var, singlevar);
 		}
+	}else if(order==0x08){
+		//function init reply
+		mcu_func_t *my_mcu_func=calloc(sizeof(mcu_func_t),len/4+1);
+		int countfunc=0;
+		char *msg;
+		int decodepos=startbyte+2;
+		//print_hex_data(&buf[0],len);
+		do{
+			my_mcu_func[countfunc].id=buf[decodepos++];
+			char *msg=my_mcu_func[countfunc].name;
+			int copy=0;
+			while(buf[decodepos]!=1){
+				if(decodepos>len || decodepos>(FUNC_NAME_LENGTH-1)){
+					printf("Order8: error copying stringname\n");
+					return;
+				}
+				msg[copy++]=buf[decodepos++];
+			}
+			msg[copy]=0; //terminator
+			decodepos++;
+			//printf("Func %i:%sDecode:%i\n",my_mcu_func[countfunc].id,msg,decodepos);
+			if(my_mcu_func[countfunc].id==0) break;
+		
+			countfunc++;
+		}while(countfunc<254);
+		//transfer data: todo:
 	}else if(order==0xFE){
 		//We recieved a msg from MCU
 		char *msg=malloc(sizeof(char)*1000);
@@ -492,7 +523,7 @@ void monitor_master_decode_string(unsigned char* buf, int len){
 		int copy=0;
 		while(buf[decodepos]!=1){
 			if(decodepos>len){
-				printf("error copying stringname\n");
+				printf("OrderFE:error copying stringname\n");
 				return;
 			}
 			msg[copy++]=buf[decodepos++];

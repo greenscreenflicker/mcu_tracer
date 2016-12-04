@@ -10,6 +10,7 @@ void monitor_master_decode_string(unsigned char* buf, int len);
 void monitor_master_req_init(void);
 void monitor_master_req_data(void);
 void monitor_master_write_var(uint16_t num, int32_t val);
+void monitor_master_func_data(void);
 void monitor_master_emergency(void);
 void monitor_master_req_frequently_enable(void);
 void monitor_master_req_frequently_disable(void);

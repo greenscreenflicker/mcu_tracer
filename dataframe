@@ -36,7 +36,6 @@ MCU->PC:
 -R/W (1 Byte)
 --Read/Write	0
 --Read only	1
--Data (4 Byte)
 -Desciptor (0 Terminated)
 -SUM(XOR)
  
@@ -65,6 +64,39 @@ MCU->PC
 -Order (0b0000 0011)
 -Arrynumber (2 bytes)
 -Value (4 Bytes)
+-SUM(XOR)
+
+Order 8: Init Functions
+MCU->PC
+-Startbyte (1 Byte)
+-Order (0b0000 1000)
+-SUM(XOR)
+
+PC->MCU
+-Startbyte (1 Byte)
+-Order (0b0000 1000)
+-ID (1 Byte)
+--Terminator 	0 (Last element, all other values need to be send but are ignored)
+--Function 1    	1
+--Function 2  		2
+--Function n	 	n
+-Desciptor (0 Terminated)
+-SUM(XOR)
+
+Order 9: Execute Functions (no parameter)
+PC->MCU
+-Startbyte (1 Byte)
+-Order (0b0000 1001)
+-Function n (1 Byte)
+-SUM(XOR)
+
+MCU->PC
+-Startbyte (1 Byte)
+-Order (0b0000 1001)
+-Function n (1 Byte)
+-Executed (1 Byte)
+--OK				1
+--FAIL				not 1
 -SUM(XOR)
 
 

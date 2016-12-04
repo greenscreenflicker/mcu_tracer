@@ -7,4 +7,4 @@ COMPILEFILES = main.o connect.o interfacer.o rs232.o debugwindow.o settingssaver
 	$(CC) -c -o $@ $< $(CFLAGS)
 	
 hellomake: $(COMPILEFILES)
-	$(CC) -o mcu_tracker $(COMPILEFILES) `pkg-config --libs gtk+-3.0` -lpthread 
+	$(CC) -o mcu_tracer $(COMPILEFILES) `pkg-config --libs gtk+-3.0` -lpthread 

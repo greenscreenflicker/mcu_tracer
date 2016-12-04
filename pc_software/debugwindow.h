@@ -1,4 +1,5 @@
 #include <gtk/gtk.h>
+#define FUNC_NAME_LENGTH 30
 
 typedef struct set_variables{
 	char label[30];
@@ -11,6 +12,13 @@ typedef struct set_variables{
 	GtkWidget* label_widget;
 	GtkWidget* data_widget;
 } set_var_t;
+
+
+typedef struct mcu_func{
+	char name[FUNC_NAME_LENGTH];
+	int id;
+	GtkWidget* button;
+} mcu_func_t;
 
 typedef struct set_single_var{
 	uint16_t addr;
@@ -36,3 +44,8 @@ gboolean variables_window_update_vars(uint32_t *datastream);
 gboolean variables_window_update_single_var(set_single_var_t *data);
 gboolean gui_msg_center_add_msg(char* msg);
 gboolean say_hello(void);
+
+gboolean FuncOnMCU_update(mcu_func_t *mcufunctions);
+
+//delete later
+void FuncOnMCU_dummydata(void);

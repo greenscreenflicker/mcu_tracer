@@ -1,4 +1,3 @@
-#include <stdint.h>
 #define MCU_TRACER_STARTBYTE 0xA5
 
 
@@ -20,9 +19,13 @@ typedef struct mcu_tracer{
   };
 } mcu_tracer_t;
 
-
-
+typedef struct mcu_func{
+  char func_name[30];
+  uint8_t (*func_ptr)(void);
+}  mcu_func_t;
+  
 mcu_tracer_t monitorvars[10];
+mcu_func_t mcufunc[5];
 
 int global_checksum;
 uint8_t mcu_tracer_checksum;
@@ -35,8 +38,8 @@ void mcu_tracer_fill(void){
   monitorvars[0].rw=0;
   monitorvars[0].data_l=&debug1;
   strcpy(monitorvars[0].varname,"LED");
-  monitorvars[0].data_lmin=INT32_MIN;
-  monitorvars[0].data_lmax=INT32_MAX;
+  monitorvars[0].data_lmin=-2;
+  monitorvars[0].data_lmax=2;
 
   monitorvars[1].type=1;
   monitorvars[1].rw=1;
@@ -53,6 +56,33 @@ void mcu_tracer_fill(void){
   monitorvars[2].data_fmax=4;
 }
 
+uint8_t print_hello1(void){
+  mcu_tracer_msg("F1 executed");
+}
+
+void mcu_tracer_func_fill(void){
+  int fipo=0;
+  strcpy(mcufunc[fipo].func_name,"F1");
+  mcufunc[fipo].func_ptr=print_hello1;
+}
+
+void mcu_tracer_func_init(void){
+  mcu_tracer_write_serial(MCU_TRACER_STARTBYTE);
+  mcu_tracer_write_serial(8); //Reply with order code
+  uint8_t fipo=0;
+  while(mcufunc[fipo].func_ptr){
+    //send data
+    if(fipo>254) break;  
+    mcu_tracer_write_serial(fipo+1);
+    mcu_tracer_write_string(mcufunc[fipo].func_name);
+    fipo++;
+  }
+  mcu_tracer_write_serial(0);//send last element indicator
+  mcu_tracer_write_string(""); //empty string
+  mcu_tracer_send_checksum();
+}
+
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -62,7 +92,7 @@ void setup() {
   Serial.println("Up and running");
  // Serial.print(monitor_elements,DEC);
   mcu_tracer_fill();
-
+  mcu_tracer_func_fill();
   //DEBUG LED
   pinMode(13, OUTPUT);
 }
@@ -151,11 +181,17 @@ void mcu_tracer_process(void){
       if(rec_checksum()){
         mcu_tracer_update(arraynumber,data);
       }
-    }else if(order=0xFF){
+    }else if(order==0xFF){
       if(rec_checksum()){
         //execute emergency function
         mcu_tracer_emergency();
         mcu_tracer_emergency_reply();
+      }
+    }else if(order==8){
+      //Init reply
+      if(rec_checksum()){
+        //checksum valid?
+        mcu_tracer_func_init();
       }
     }else{
       mcu_tracer_msg("recieved unkown order");
@@ -275,6 +311,7 @@ void mcu_tracer_init_reply(void){
   mcu_tracer_write_serial(0x00);
   mcu_tracer_send_checksum();
 }
+
 
 void mcu_tracer_emergency_reply(void){
   mcu_tracer_write_serial(MCU_TRACER_STARTBYTE);
