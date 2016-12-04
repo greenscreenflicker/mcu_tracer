@@ -47,6 +47,13 @@ gboolean say_hello(void);
 gboolean FuncOnMCU_update(mcu_func_t *mcufunctions);
 
 gboolean FuncOnMCU_update(mcu_func_t *mcufunctions);
+void callback_func_click_reactivate(int *id_to_reactivate);
+void timeout_reset_register(guint function);
+void inject_timeout(GSourceFunc func, gpointer data, guint ms);
+void timeout_reset_of_fail(guint function);
+void func_reset_register_callback(guint function);
+char* func_get_desciptor_by_id(int id);
+void func_report_execution_fail(int id,int status);
 
 //delete later
 void FuncOnMCU_dummydata(void);

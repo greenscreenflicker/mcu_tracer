@@ -94,7 +94,7 @@ MCU->PC
 -Startbyte (1 Byte)
 -Order (0b0000 1001)
 -Function n (1 Byte)
--Executed (1 Byte)
+-Function status (1 Byte)
 --OK				1
 --FAIL				not 1
 -SUM(XOR)

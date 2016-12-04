@@ -69,8 +69,8 @@ uint8_t test_led_off(void){
   return 1;
 }
 uint8_t print_hello1(void){
-  mcu_tracer_msg("I say hello");
-  return 1;
+  mcu_tracer_msg("This function returns 2.");
+  return 2;
 }
 
 void mcu_tracer_func_fill(void){
@@ -83,7 +83,7 @@ void mcu_tracer_func_fill(void){
   mcufunc[fipo].func_ptr=test_led_off;
   fipo++;
   
-  strcpy(mcufunc[fipo].func_name,"Say Hello");
+  strcpy(mcufunc[fipo].func_name,"Fail Func");
   mcufunc[fipo].func_ptr=print_hello1;
   fipo++;
   

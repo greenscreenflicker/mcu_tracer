@@ -206,13 +206,13 @@ gboolean variables_window_update_vars(uint32_t *datastream){
 		mydd[loop].data_l=datastream[loop];
 		char str[30];
 		if(mydd[loop].type==1){
-			sprintf(str, "%i", mydd[loop].data_l);
+			snprintf(str,30, "%i", mydd[loop].data_l);
 			//do not overwrite, when user is editing
 			if(gtk_widget_is_focus (GTK_WIDGET(mydd[loop].data_widget))==FALSE){
 				gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
 			}
 		}else if(mydd[loop].type==2){
-			sprintf(str, "%lf", mydd[loop].data_f);
+			snprintf(str,30, "%lf", mydd[loop].data_f);
 			//do not overwrite, when user is editing
 			if(gtk_widget_is_focus (GTK_WIDGET(mydd[loop].data_widget))==FALSE){
 				gtk_entry_set_text(GTK_ENTRY(mydd[loop].data_widget),str);
@@ -268,11 +268,86 @@ void callback_func_clicked(GtkWidget *widget, gpointer   data ){
 		if(mcu_functions[loop].button==widget){
 			//we found it
 			//printf("ID %i was clicked.\n",mcu_functions[loop].id);
+		               
+            gtk_widget_set_sensitive (mcu_functions[loop].button, FALSE);
 			monitor_master_func_exec(mcu_functions[loop].id);
+			timeout_reset_register(mcu_functions[loop].id);
 			return;
 		}
 		loop++;
 	}
+}
+
+void callback_func_click_reactivate(int *id_to_reactivate){
+	//reactivates a button after click
+	int reactivate=*id_to_reactivate;
+	//printf("I reactivated %i\n",reactivate);
+
+	int loop=0;
+	//We loop here on propose to avoid crashes on corrupt data.
+	while(mcu_functions[loop].id>0){
+		if(mcu_functions[loop].id==reactivate){
+			//we found it
+            gtk_widget_set_sensitive (mcu_functions[loop].button, TRUE);
+			return;
+		}
+		loop++;
+	}
+	free(id_to_reactivate);
+}
+
+
+char* func_get_desciptor_by_id(int id){
+	int loop=0;
+	//We loop here on propose to avoid crashes on corrupt data.
+	while(mcu_functions[loop].id>0){
+		if(mcu_functions[loop].id==id){
+			//we found it
+			return mcu_functions[loop].name;
+		}
+		loop++;
+	}
+}
+
+void func_report_execution_fail_execute(int *id){
+	int function=id[0];
+	int funcstatus=id[1];
+	char *msg=malloc(sizeof(char)*1000);
+	snprintf(msg,1000,"FuncFail \"%s\" (id=%i) returned error code %i",func_get_desciptor_by_id(function),function,funcstatus);
+	inject_call((GSourceFunc)gui_msg_center_add_msg, msg);
+	free(id);
+}
+
+void func_report_execution_fail(int id,int status){
+	int *data=malloc(2*sizeof(int));
+	data[0]=id;
+	data[1]=status;
+	inject_call((GSourceFunc)func_report_execution_fail_execute, data);
+}
+
+gboolean callback_func_click_reactivate_timeout(int *id_to_reactivate){
+	//printf("Timeout reactivated %i\n",*id_to_reactivate);
+	callback_func_click_reactivate(id_to_reactivate);
+	return 	G_SOURCE_REMOVE;
+}
+
+void timeout_reset_register(guint function){
+	//
+	int *data=malloc(sizeof(int));
+	data[0]=function;
+	inject_timeout((GSourceFunc)callback_func_click_reactivate_timeout, data,1500);
+}
+
+void timeout_reset_of_fail(guint function){
+	int *data=malloc(sizeof(int));
+	data[0]=function;
+	inject_timeout((GSourceFunc)callback_func_click_reactivate_timeout, data,500);
+}
+
+void func_reset_register_callback(guint function){
+	int *data=malloc(sizeof(int));
+	data[0]=function;
+	inject_call((GSourceFunc)callback_func_click_reactivate, data);
 }
 
 void FuncOnMCU_dummydata(void){
@@ -603,6 +678,14 @@ void inject_call(GSourceFunc func, gpointer data){
 	source = g_idle_source_new();
 	g_source_set_callback(source, func, data, NULL);
 	g_source_attach(source, gtk_context_var);
-	
 	g_source_unref(source);
 }
+
+void inject_timeout(GSourceFunc func, gpointer data, guint ms){
+	GSource *source;
+	source = g_timeout_source_new (ms);
+	g_source_set_callback(source, func, data, NULL);
+	g_source_attach(source,gtk_context_var);
+	g_source_unref(source);
+}
+

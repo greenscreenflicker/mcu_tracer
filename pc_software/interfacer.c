@@ -526,6 +526,17 @@ void monitor_master_decode_string(unsigned char* buf, int len){
 		inject_call((GSourceFunc)FuncOnMCU_update, my_mcu_func);
 	}else if(order==9){
 		//todo: Process this confirmation
+		int decodepos=startbyte+2;
+		int function=buf[decodepos++];
+		int funcstatus=buf[decodepos++];
+		
+		if(!(funcstatus==1)){
+			timeout_reset_of_fail(function);
+			func_report_execution_fail(function,funcstatus);
+		}else{
+			//we can reactivate call
+			func_reset_register_callback(function);
+		}
 	}else if(order==0xFE){
 		//We recieved a msg from MCU
 		char *msg=malloc(sizeof(char)*1000);
