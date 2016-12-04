@@ -193,6 +193,13 @@ void monitor_master_func_data(void){
 	monitor_master_send(data,1);
 }
 
+
+void monitor_master_func_exec(uint8_t id){
+	unsigned char data[2]={0x09,id};
+	monitor_master_send(data,2);
+}
+
+
 void monitor_master_emergency(void){
 	//requests data stream of all data;
 	unsigned char data[]={0xFF};
@@ -515,7 +522,10 @@ void monitor_master_decode_string(unsigned char* buf, int len){
 		
 			countfunc++;
 		}while(countfunc<254);
-		//transfer data: todo:
+		//transfer data
+		inject_call((GSourceFunc)FuncOnMCU_update, my_mcu_func);
+	}else if(order==9){
+		//todo: Process this confirmation
 	}else if(order==0xFE){
 		//We recieved a msg from MCU
 		char *msg=malloc(sizeof(char)*1000);

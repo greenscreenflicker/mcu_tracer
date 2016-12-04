@@ -28,7 +28,7 @@ int system_streaming=0;
 
 struct set_variables *set_variables_data;
 struct set_variables *read_variables_data;
-struct mcu_func *mcu_functions;
+struct mcu_func *mcu_functions=NULL;
 
 //Toogle Button variable change. Writes changes to memory
 void callback_set_variables_changed(GtkWidget *widget, gpointer   data ){
@@ -267,7 +267,8 @@ void callback_func_clicked(GtkWidget *widget, gpointer   data ){
     while(mcu_functions[loop].id>0){
 		if(mcu_functions[loop].button==widget){
 			//we found it
-			printf("ID %i was clicked.\n",mcu_functions[loop].id);
+			//printf("ID %i was clicked.\n",mcu_functions[loop].id);
+			monitor_master_func_exec(mcu_functions[loop].id);
 			return;
 		}
 		loop++;
@@ -296,7 +297,9 @@ void FuncOnMCU_dummydata(void){
 gboolean FuncOnMCU_update(mcu_func_t *mcufunctions){
 	//recrusivly destroy grid
 	gtk_widget_destroy(debugwindow_fonmcu_grid);
-//	free(debugwindow_fonmcu_grid); //free óld memory
+	
+	//if something should produce glib errors, check this!
+	free(mcu_functions); //free óld memory
 	
 	//create new grid
 	debugwindow_fonmcu_grid=gtk_grid_new();

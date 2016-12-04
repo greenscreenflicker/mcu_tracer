@@ -31,6 +31,8 @@ int global_checksum;
 uint8_t mcu_tracer_checksum;
 int32_t debug1, debug2, debugbefore;
 float debug3;
+
+uint8_t mcu_tracer_registered_func=0;
 #define MONITOR_ELEMENTS (sizeof(monitorvars)/sizeof(mcu_tracer_t))
 
 void mcu_tracer_fill(void){
@@ -56,14 +58,36 @@ void mcu_tracer_fill(void){
   monitorvars[2].data_fmax=4;
 }
 
+uint8_t test_led_on(void){
+  mcu_tracer_msg("LED ON");
+  debug1=1;
+  return 1;
+}
+uint8_t test_led_off(void){
+  mcu_tracer_msg("LED OFF");
+  debug1=0;
+  return 1;
+}
 uint8_t print_hello1(void){
-  mcu_tracer_msg("F1 executed");
+  mcu_tracer_msg("I say hello");
+  return 1;
 }
 
 void mcu_tracer_func_fill(void){
   int fipo=0;
-  strcpy(mcufunc[fipo].func_name,"F1");
+  strcpy(mcufunc[fipo].func_name,"LED on");
+  mcufunc[fipo].func_ptr=test_led_on;
+  fipo++;
+  
+  strcpy(mcufunc[fipo].func_name,"LED off");
+  mcufunc[fipo].func_ptr=test_led_off;
+  fipo++;
+  
+  strcpy(mcufunc[fipo].func_name,"Say Hello");
   mcufunc[fipo].func_ptr=print_hello1;
+  fipo++;
+  
+  mcu_tracer_registered_func=fipo-1;
 }
 
 void mcu_tracer_func_init(void){
@@ -78,11 +102,27 @@ void mcu_tracer_func_init(void){
     fipo++;
   }
   mcu_tracer_write_serial(0);//send last element indicator
-  mcu_tracer_write_string(""); //empty string
+  mcu_tracer_write_serial(1);//empty string
   mcu_tracer_send_checksum();
 }
 
-
+void mcu_tracer_func_execute(uint8_t id){
+  int sucess=0;
+  if(id>0){
+    //check id;
+    uint8_t internal;
+    internal=id-1;
+    if(internal<=mcu_tracer_registered_func){
+      sucess= (mcufunc[internal].func_ptr)();  
+    }    
+  }
+  mcu_tracer_write_serial(MCU_TRACER_STARTBYTE);
+  mcu_tracer_write_serial(9);
+  mcu_tracer_write_serial(id);
+  mcu_tracer_write_serial(sucess);
+  mcu_tracer_send_checksum();
+}
+  
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -112,9 +152,9 @@ uint8_t rec_checksum(void){
   if(mcu_tracer_checksum==ch){
     return 1;
   }else{
-    Serial.println("checksum expected:");
-    Serial.print(mcu_tracer_checksum,HEX);
-    Serial.println("<-");
+    //Serial.println("checksum expected:");
+    //Serial.write(mcu_tracer_checksum);  
+    //Serial.println("<-");
     return 0; 
   }
 }
@@ -192,6 +232,12 @@ void mcu_tracer_process(void){
       if(rec_checksum()){
         //checksum valid?
         mcu_tracer_func_init();
+      }
+    }else if(order==9){
+      //Init reply
+      uint8_t funcid=rec_char();
+      if(rec_checksum()){
+          mcu_tracer_func_execute(funcid);
       }
     }else{
       mcu_tracer_msg("recieved unkown order");
@@ -333,12 +379,13 @@ void loop() {
   }else{
     digitalWrite(13, LOW);
   }
+  /*
   if(debugbefore!=debug1){
     itoa(debug1,&msg[0],10);
     strcat(msg,"=Debug one");
     mcu_tracer_msg(msg);
 
-  }
+  }*/
   debugbefore=debug1;
   debug2=analogRead(A0);
   debug3=debug2 * (5.0 / 1023.0);
