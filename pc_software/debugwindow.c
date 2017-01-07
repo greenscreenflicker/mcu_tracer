@@ -353,6 +353,7 @@ void func_reset_register_callback(guint function){
 void FuncOnMCU_dummydata(void){
 	mcu_func_t *mcufunctions=malloc(sizeof(mcu_func_t)*5);
 	int fill=0;
+	/*
 	strcpy(mcufunctions[fill].name,"button 1");
 	mcufunctions[fill].id=1;
 	// next item
@@ -362,12 +363,18 @@ void FuncOnMCU_dummydata(void){
 	fill=fill+1;
 	strcpy(mcufunctions[fill].name,"button 3");
 	mcufunctions[fill].id=3;
-	fill=fill+1;
+	fill=fill+1;*/
 	mcufunctions[fill].id=-1;
 	FuncOnMCU_update(mcufunctions);
 }
 
-	
+void callback_FuncOnMCU_windowhide(void){
+	char *msg=malloc(sizeof(char)*1000);
+	strcpy(msg,"MCUTRACER: User minimized function window.");
+	inject_call((GSourceFunc)gui_msg_center_add_msg, msg);
+	gtk_widget_hide(debugwindow_fonmcu);
+}
+
 
 gboolean FuncOnMCU_update(mcu_func_t *mcufunctions){
 	//recrusivly destroy grid
@@ -387,11 +394,29 @@ gboolean FuncOnMCU_update(mcu_func_t *mcufunctions){
 		gtk_grid_attach (GTK_GRID (debugwindow_fonmcu_grid), mcufunctions[data].button, 1, 1+data, 1, 1);
 		data=data+1;
 	}
+	//Empty string was transmitted
+	if(data==0){
+		mcufunctions[data].button=gtk_label_new("Functions not supported by the firmware.\nUpdate to newer firmware.");
+		gtk_widget_set_halign((mcufunctions[data].button),GTK_ALIGN_CENTER); //center label
+		gtk_widget_set_valign((mcufunctions[data].button),GTK_ALIGN_CENTER); //center label
+		gtk_widget_set_hexpand(mcufunctions[data].button,TRUE);
+		//gtk_widget_set_vexpand(mcufunctions[data].button,TRUE);
+		
+		
+		gtk_grid_attach (GTK_GRID (debugwindow_fonmcu_grid), mcufunctions[data].button, 1, 1, 2, 1 );
+		
+		GtkWidget *removebutton;
+		removebutton=gtk_button_new_with_label("remove message");
+		gtk_grid_attach (GTK_GRID (debugwindow_fonmcu_grid), removebutton, 1, 2, 2, 1 );
+		g_signal_connect (removebutton, "clicked",G_CALLBACK (callback_FuncOnMCU_windowhide), NULL);
+		
+	}
 	gtk_container_add(GTK_CONTAINER(debugwindow_fonmcu), debugwindow_fonmcu_grid); 
 	gtk_widget_show_all(debugwindow_fonmcu);
 	mcu_functions=mcufunctions;
 	return G_SOURCE_REMOVE;
 }
+
 
 
 
