@@ -166,6 +166,7 @@ void gui_connect_window(void){
     //Add feedback box
     
     feedback_box=gtk_label_new("please connect");
+    gtk_widget_set_vexpand(feedback_box,TRUE); //make scaleable vertically
     gtk_grid_attach (GTK_GRID (table), feedback_box, 0, 2, 2, 1);
     
     //Add quit button
@@ -184,8 +185,12 @@ void gui_connect_window(void){
     GtkWidget *connect_connect_button;
     connect_connect_button= gtk_button_new_with_label("connect");
     g_signal_connect_swapped (connect_connect_button,"clicked",G_CALLBACK (gui_connect_window_connect2serial), window);
-	gtk_grid_attach (GTK_GRID (table), connect_connect_button, 1, 3, 1, 1);
+	gtk_widget_set_hexpand(connect_connect_button,TRUE); //make scaleable over the horizon
 	
+	//table
+	gtk_grid_attach (GTK_GRID (table), connect_connect_button, 1, 3, 1, 1);
+	gtk_widget_set_hexpand(table,TRUE); //make scaleable in both directions.
+	gtk_widget_set_vexpand(table,TRUE);
     //Final stuff
     gtk_widget_show_all(window);
     
