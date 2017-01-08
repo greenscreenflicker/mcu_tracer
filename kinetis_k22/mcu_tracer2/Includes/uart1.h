@@ -20,6 +20,7 @@ uint16_t UART1_rec_size(void);
 void UART1_dma_complete_wait(void);
 void UART1_dma_config_rec(void);
 void UART1_dmaconfig(void);
-char UART1_buffercontent(void);
+uint16_t UART1_buffercontent(void);
+void UART1_rec_buf_reset(void);
 
 #endif /* PROJECT_HEADERS_UART1_H_ */

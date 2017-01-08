@@ -5,12 +5,13 @@
  *      Author: mmh
  */
 
+#include <stdint.h>
+#include <stdio.h>
 #include "mcu_tracer.h"
 #include "uart1.h"
 #include "string.h"
 
-
-mcu_tracer_t monitorvars[10];
+mcu_tracer_t monitorvars[20];
 #define MONITOR_ELEMENTS (sizeof(monitorvars)/sizeof(mcu_tracer_t))
 
 int global_checksum;
@@ -18,70 +19,107 @@ int global_checksum;
  int32_t debug1, debug2, debugbefore;
  float debug3;
 
-uint32_t mainloop_iterations;
+uint8_t mcu_tracer_reject_data=0;
 
 
-char sendbuf[1000];
+
+extern float global_regul_d;
+
+uint32_t led_lauflicht=1;
+
+int32_t mainloop_iterations;
+uint32_t global_deadtime=20;
+
+float testfloat;
+float testfloat_original;
+float testfloat_approx;
+
+
+
+uint8_t sendbuf[MCU_TRACER_SENDBUF_SIZE];
 uint16_t sendbuf_pos=0;
 
 void mcu_tracer_config(){
 	UART1_startup(115200);
+	//UART1_startup(1000000);
 	mcu_tracer_fill();
 }
 
 void mcu_tracer_fill(void){
-   monitorvars[0].type=1;
-   monitorvars[0].rw=0;
-   monitorvars[0].data_l=&debug1;
-   strcpy(monitorvars[0].varname,"LED");
-   monitorvars[0].data_lmin=INT32_MIN;
-   monitorvars[0].data_lmax=INT32_MAX;
+	uint16_t fill=0;
+	monitorvars[fill].type=1;
+	monitorvars[fill].rw=0;
+	monitorvars[fill].data_l=&debug1;
+	strcpy(monitorvars[fill].varname,"LED");
+	monitorvars[fill].data_lmin=INT32_MIN;
+	monitorvars[fill].data_lmax=INT32_MAX;
+	fill++;
 
-   monitorvars[1].type=1;
-   monitorvars[1].rw=1;
-   monitorvars[1].data_l=&debug2;
-   strcpy(monitorvars[1].varname,"ADC raw");
-   monitorvars[1].data_lmin=0;
-   monitorvars[1].data_lmax=1;
+	monitorvars[fill].type=1;
+	monitorvars[fill].rw=1;
+	monitorvars[fill].data_l=&debug2;
+	strcpy(monitorvars[fill].varname,"ADC raw");
+	monitorvars[fill].data_lmin=0;
+	monitorvars[fill].data_lmax=1;
+	fill++;
 
-   monitorvars[2].type=2;
-   monitorvars[2].rw=1;
-   monitorvars[2].data_f=&debug3;
-   strcpy(monitorvars[2].varname,"ADC converted");
-   monitorvars[2].data_fmin=0;
-   monitorvars[2].data_fmax=4;
+	monitorvars[fill].type=2;
+	monitorvars[fill].rw=1;
+	monitorvars[fill].data_f=&debug3;
+	strcpy(monitorvars[fill].varname,"ADC converted");
+	monitorvars[fill].data_fmin=0;
+	monitorvars[fill].data_fmax=4;
+	fill++;
 
-   monitorvars[3].type=1;
-   monitorvars[3].rw=1;
-   monitorvars[3].data_l=&mainloop_iterations;
-   strcpy(monitorvars[3].varname,"Mainloop Iter");
-   monitorvars[3].data_lmin=INT32_MIN;
-   monitorvars[3].data_lmax=INT32_MAX;
+	monitorvars[fill].type=1;
+	monitorvars[fill].rw=1;
+	monitorvars[fill].data_l=&mainloop_iterations;
+	strcpy(monitorvars[fill].varname,"Mainloop Iter");
+	monitorvars[fill].data_lmin=INT32_MIN;
+	monitorvars[fill].data_lmax=INT32_MAX;
+	fill++;
+
+	mcu_tracer_reject_data=0;
  }
 
 uint8_t rec_char(void){
-      while(!(UART1_buffercontent()));
-      uint8_t ch;
-      ch=UART1_getch();
-      mcu_tracer_checksum=ch^mcu_tracer_checksum;
-      return ch;
+	if(mcu_tracer_reject_data) return 0;
+	int timeout=10000;
+	while(!(UART1_buffercontent())){
+		timeout--;
+		if(timeout<1){
+			mcu_tracer_reject_data=1;
+			return 0;
+		}
+	}
+	uint8_t ch;
+	ch=UART1_getch();
+	mcu_tracer_checksum=ch^mcu_tracer_checksum;
+	return ch;
 }
 
 uint8_t rec_checksum(void){
-  while(!(UART1_buffercontent()));
-  uint8_t ch;
-  ch=UART1_getch();
-  if(mcu_tracer_checksum==ch){
-    return 1;
-  }else{
-    return 0;
-  }
+	if(mcu_tracer_reject_data){
+		UART1_rec_buf_reset();
+		return 0;
+	}
+	while(!(UART1_buffercontent()));
+	uint8_t ch;
+	ch=UART1_getch();
+	if(mcu_tracer_checksum==ch){
+	  if(led_lauflicht==2) led_lauflicht=1;
+	  UART1_dma_complete_wait();
+	  return 1;
+	}else{
+	  //Let's empty buffer, and wait for a new correct string.
+		return 0;
+	}
 }
 
 void mcu_tracer_process(void){
   while(1){
     mcu_tracer_checksum=0;
-    if(!(UART1_buffercontent())){
+    if((UART1_buffercontent())<3){
       //We have no data, we're done
       return;
     }
@@ -95,6 +133,7 @@ void mcu_tracer_process(void){
     }else{
       //Serial.println("Recieved startbyte");
     }
+    UART1_dma_complete_wait();
     //Now we synced to the startbyte
 
     uint8_t order=rec_char();
@@ -112,11 +151,12 @@ void mcu_tracer_process(void){
         mcu_tracer_init();
       }
     }else if(order==0){
-      if(rec_checksum()){
-        mcu_tracer_init_reply();
-      }
+        if(rec_checksum()){
+        	mcu_tracer_ping();
+        }
+     }
 
-    }else if(order==2){
+    else if(order==2){
       if(rec_checksum()){
         mcu_tracer_vals();
       }
@@ -140,27 +180,49 @@ void mcu_tracer_process(void){
       if(rec_checksum()){
         mcu_tracer_update(arraynumber,data);
       }
-    }else if(order=0xFF){
+    }else if(order==0xFF){
       if(rec_checksum()){
         //execute emergency function
         mcu_tracer_emergency();
         mcu_tracer_emergency_reply();
       }
     }else{
-      mcu_tracer_msg("recieved unkown order");
+    	char ret[100];
+    	snprintf(ret,100, "MCU recieved unkown order %x",order);
+		mcu_tracer_msg(ret);
     }
     mcu_tracer_flush_buffer();
+    mcu_tracer_reject_data_check();
   }
 }
 
-void mcu_tracer_write_serial(char data){
-  global_checksum=global_checksum^data;
-  UART1_dma_complete_wait();
-  sendbuf[sendbuf_pos++]=data;
+void mcu_tracer_reject_data_check(void){
+	if(mcu_tracer_reject_data){
+		UART1_rec_buf_reset();
+		mcu_tracer_reject_data=0;
+		mcu_tracer_msg("transmission error.");
+	}
+}
+void mcu_tracer_write_serial(uint8_t data){
+	global_checksum=global_checksum^data;
+	if(sendbuf_pos>(MCU_TRACER_SENDBUF_SIZE-1)){
+		mcu_tracer_flush_buffer();
+		UART1_dma_complete_wait();
+	}
+	sendbuf[sendbuf_pos++]=data;
+}
+
+void mcu_tracer_write_serial_nochecksum(uint8_t data){
+	if(sendbuf_pos>(MCU_TRACER_SENDBUF_SIZE-1)){
+		mcu_tracer_flush_buffer();
+		UART1_dma_complete_wait();
+	}
+	sendbuf[sendbuf_pos++]=data;
 }
 
 void mcu_tracer_flush_buffer(void){
-	UART1_txBulk(sendbuf,sendbuf_pos);
+	if(!sendbuf_pos)return;
+	UART1_txBulk((uint8_t *)sendbuf,sendbuf_pos);
 	sendbuf_pos=0;
 }
 
@@ -178,7 +240,7 @@ void mcu_tracer_send_checksum(void){
 }
 
 void mcu_tracer_init(void){
-  int i;
+  uint16_t i;
   mcu_tracer_write_serial(MCU_TRACER_STARTBYTE);
   mcu_tracer_write_serial(1); //Order type 1: Sending init
   for(i=0; i<MONITOR_ELEMENTS; i++){
@@ -201,7 +263,7 @@ void mcu_tracer_init(void){
 void mcu_tracer_vals(void){
   mcu_tracer_write_serial(MCU_TRACER_STARTBYTE);
   mcu_tracer_write_serial(2); //order two, we transfer variables
-  char i;
+  uint16_t i;
   for(i=0; i<MONITOR_ELEMENTS; i++){
     //check if we have a terminator =>if, break
     if(monitorvars[i].type==0) break;
@@ -215,8 +277,15 @@ void mcu_tracer_vals(void){
   mcu_tracer_send_checksum();
 }
 
+union dataconvert {
+   int32_t i;
+   float f;
+};
+
+
 //Updates the value in the register
 void mcu_tracer_update(uint16_t addr, int32_t val){
+
   if(addr>MONITOR_ELEMENTS){
     //error, we do not have this addr
     return;
@@ -224,8 +293,7 @@ void mcu_tracer_update(uint16_t addr, int32_t val){
 
   if(monitorvars[addr].type==1||monitorvars[addr].type==3){
     //Integer
-    int32_t *toupdate;
-    toupdate=monitorvars[addr].data_l; //getting mcu address of variable
+
     if(val>monitorvars[addr].data_lmax){
       val=monitorvars[addr].data_lmax;
     }
@@ -240,6 +308,17 @@ void mcu_tracer_update(uint16_t addr, int32_t val){
      /*
     *(monitorvars[addr].data_l+1)=(uint8_t)(val<<8);
     *(monitorvars[addr].data_l+1)=(uint8_t)(val<<8);*/
+  }else if(monitorvars[addr].type==2){
+	union dataconvert dataconv;
+	dataconv.i=val;
+	float val_f=dataconv.f;
+	if((val_f)>monitorvars[addr].data_fmax){
+	  val=monitorvars[addr].data_fmax;
+	}
+	if((val_f)<monitorvars[addr].data_fmin){
+	  val=monitorvars[addr].data_fmin;
+	}
+	*(monitorvars[addr].data_f)=val_f;
   }else{
     mcu_tracer_msg("Data type not yet supported");
   }
@@ -247,11 +326,23 @@ void mcu_tracer_update(uint16_t addr, int32_t val){
 }
 
 void mcu_tracer_msg(const char* msg){
-  mcu_tracer_write_serial(MCU_TRACER_STARTBYTE);
-  mcu_tracer_write_serial(0xFE);
-  mcu_tracer_write_string(msg);
-  mcu_tracer_send_checksum();
+	UART1_dma_complete_wait();
+
+	uint8_t localchecksum=MCU_TRACER_STARTBYTE;
+	mcu_tracer_write_serial_nochecksum(MCU_TRACER_STARTBYTE);
+	localchecksum=localchecksum^0xFE;
+	mcu_tracer_write_serial_nochecksum(0xFE);
+	while( *msg != '\0' ){
+		uint8_t data=*msg++;
+		localchecksum=localchecksum^data;
+		mcu_tracer_write_serial_nochecksum(data);
+	}
+	localchecksum=localchecksum^0x01;
+	mcu_tracer_write_serial_nochecksum(0x01);
+	mcu_tracer_write_serial_nochecksum(localchecksum);
+	mcu_tracer_flush_buffer();
 }
+
 
 void mcu_tracer_inform(uint16_t addr){
   if(addr>MONITOR_ELEMENTS) return; //we do not have this.
@@ -268,9 +359,9 @@ void mcu_tracer_inform(uint16_t addr){
   mcu_tracer_send_checksum();
 }
 
-void mcu_tracer_init_reply(void){
+void mcu_tracer_ping(void){
   mcu_tracer_write_serial(MCU_TRACER_STARTBYTE);
-  mcu_tracer_write_serial(0x00);
+  mcu_tracer_write_serial(0);
   mcu_tracer_send_checksum();
 }
 
@@ -281,14 +372,14 @@ void mcu_tracer_emergency_reply(void){
 }
 
 void mcu_tracer_emergency(void){
-  mcu_tracer_msg("Place here your emergency code");
+//	FTM_mask();
+	mcu_tracer_msg("PWM Outputs disabled.");
 }
 /*
 char msg[40];
 void loop() {
   // put your main code here, to run repeatedly:
   mcu_tracer_process();
-
   if(debug1==1){
     digitalWrite(13, HIGH);
   }else{
@@ -298,7 +389,6 @@ void loop() {
     itoa(debug1,&msg[0],10);
     strcat(msg,"=Debug one");
     mcu_tracer_msg(msg);
-
   }
   debugbefore=debug1;
   debug2=analogRead(A0);
