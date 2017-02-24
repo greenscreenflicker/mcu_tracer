@@ -503,19 +503,21 @@ void monitor_master_decode_string(unsigned char* buf, int len){
 		int countfunc=0;
 		char *msg;
 		int decodepos=startbyte+2;
-		//print_hex_data(&buf[0],len);
+		int lastsucessfulldecode=0;
 		do{
 			my_mcu_func[countfunc].id=buf[decodepos++];
 			char *msg=my_mcu_func[countfunc].name;
 			int copy=0;
 			while(buf[decodepos]!=1){
-				if(decodepos>len || decodepos>(FUNC_NAME_LENGTH-1)){
-					printf("Order8: error copying stringname\n");
+				if(decodepos>len || (decodepos-lastsucessfulldecode)>(FUNC_NAME_LENGTH-1)){
+					print_hex_data(&buf[0],len);
+					printf("Order8: error copying stringname %c (decodepos: %i)\n",buf[decodepos],decodepos);
 					return;
 				}
 				msg[copy++]=buf[decodepos++];
 			}
 			msg[copy]=0; //terminator
+			lastsucessfulldecode=decodepos;
 			decodepos++;
 			//printf("Func %i:%sDecode:%i\n",my_mcu_func[countfunc].id,msg,decodepos);
 			if(my_mcu_func[countfunc].id==0) break;
